@@ -23,7 +23,7 @@ Useful keys:
 - TAB - toggle deboug layer (collision boxes, pathfinding grid & path)
 
 - SPACE - pause the gameplay (this enables you to add new enemies and hitboxes)
-![]=(https://github.com/VlaDimirBoban/Bobke_ZeldaClone/blob/main/thumbs/Bobke_showcase.gif)
+![](https://github.com/VlaDimirBoban/Bobke_ZeldaClone/blob/main/thumbs/Bobke_showcase.gif)
 
 
 Raylib:

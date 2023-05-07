@@ -1217,7 +1217,7 @@ int main(void)
             x = 1400;
         }
 
-        if (devmode)
+        if (!pause)
         {
             /*
 

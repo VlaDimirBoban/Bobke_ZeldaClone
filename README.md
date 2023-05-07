@@ -1,6 +1,6 @@
 # Bobke 
 
-![alt text]=(https://github.com/VlaDimirBoban/Bobke_ZeldaClone/blob/main/thumbs/Bobke.png?raw=true)
+![alt text](https://github.com/VlaDimirBoban/Bobke_ZeldaClone/blob/main/thumbs/Bobke.png?raw=true)
 
 Fun little zelda inspired clone. This game was a significant milestone for me, i wanted to make a pathfinding system and couldn't find any tutorials/material. This turned out to be a blessing in disguies, i researched old algorithms and built it from scatch. 
 

@@ -17,8 +17,11 @@ Currently i'm working on Z-buffering and map editor in a separate project (will 
 Useful keys:
 
 F1 - rudimentary/fancy graphics switch
+
 F2 - save world state (enemies && hitboxes)
+
 TAB - toggle deboug layer (collision boxes, pathfinding grid & path)
+
 SPACE - pause the gameplay (this enables you to add new enemies and hitboxes)
 
 

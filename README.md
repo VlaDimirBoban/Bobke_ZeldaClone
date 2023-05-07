@@ -12,7 +12,7 @@ I made:
 
 both of wich are saved into individual .csv files which allows me to save current state of the game world.
 
-Currently i'm working on Z-buffering and map editor in a separate project (will probably post it as a separate project).
+Currently i'm working on Z-buffering and map editor in a separate project (will probably post it in another repo).
 
 Useful keys:
 

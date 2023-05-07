@@ -1,0 +1,166 @@
+TO DO:
+
+
+- layered implementacija. z-buffer iscrctavanje iz onog projekta. Sve djuture u jedan vektor
+Sort na osnovu .y vrednosti (int). Iscrtavanje tim redom. #nice
+- mapa teksturica/decals. 
+- goofy wraparound ponasanje
+- pass by value/reference pointer; overall code review
+
+ANIMACIJE
+
+- shodno inputu crtas za igraca (EZ part)
+- shodno velocity-ju skladistis smer kretanja (a samim tim i odabir animacije)
+- Animacija se uklapa, zeza me doduse. Kao da je sprite sheet ceo ispod, pomera se stalno a ja pomeram masku preko njega.
+Sto u sustini i treba da se desava, ali je clunky =-= Pomerao scale umesto pozicije
+Resiti trcanje da bude konzistentno za igraca (posle samo repeat za neprijatelje <3); RESENO
+- Implementirati animacije za svaki tip neprijatelja i onda dovesti u red hitbox-ove; Nakon toga doraditi pozadinu i ubaciti
+toggle da bude instant lepsa igrica :) SHOCK & AWE;
+1) radi; fala kurcu =-=
+2) radi; fine tune zalet! decent zalet (ne mora se napinjem previse)
+3) radi; trash resenje kinda. crtamo pozadinu sad i swish!
+Swish:
+1) nacrtano govno
+2) DrawTexturePro (skaliranje i rotacija). Malo je goofy moram da provalim kako radi.
+Pozitivan aspekt je to sto skaliram u samom kodiranju, ne mora trosim vreme u PS (barem tako izgleda =-=)
+3) iscrtava se sa rotacijom, kad je ispunjen uslov player.show. Timing i trajanje animacije sad.
+4) treba da se offsetuje pojavljivanje hitboxa i crtanje animacije
+- animirati death state da ne nestanu samo sa ekrana. bilo bi kul da ostaju tu gde su kao static
+objekti. Problem sa vektorima, kako da push_back() klasu =-=
+5) zeza animacija u desno =-= god damn it
+
+Gameplay tune:
+1) ubaceno smooth odbijanje nepriajtelja (/= 1.25)
+2) ubacen "framework" za promenu grafike
+3) sredjena brzina igraca (mnogo je leteo); mozda treba podesiti i brzine neprijatelja?
+3) srediti kuglu za zbunjivanje ako izadje sa ekrana neprijatelj; Prvo bi bilo dobro da provalimo
+kakvo ponasanje se zbiva i zasto trokira. hommingnode bio problem, pinpointovao ali nisam shvatio
+u potpunosti.
+
+
+
+RESENO:
+
+- player boop zebava. radi samo jednom. Posle toga se zalepi. [player.move je bio problem. Ostane nula i zato se lepi govno za gonvo!]
+moram da pogledam prosli kod da vidim sta se tu desavalo i gde je player.move zagubljen prilikom refaktorisanja; playerboop je imao overlap 
+zato sto su svi hitbox-ovi u jednom vektoru, tj. zaboravio sam vechck(pos) lambdu upisati.
+- Mac kolizija u vektor modu! (zebava nesto trenutno =-=)
+- TYPE neprijatelja. Mozda malo elegantniji nacin biranja i vizuelno diferenciranje. vizuelno done
+3) tip ranged -  kad dodje do odredjenog rastojanja, pljucka ka tebi. dodje do 15 node-a od igraca i
+nacrta pravu liniju od centra do centra. Duz te linije nacrta 30*X rectangle i proveri da li ima prepreka (raycasting).
+Mada mogo bi da implementiram pucnjavu bez raycastinga pa onda da ga ubacim nakon (deluje kao nov problem)
+sad se promeni player.goal za neprijatelja i prate te loptice (hmmm=-=). Zato sto je time based a ne event based =-=
+Sredjeno drkanje sa kolizijama oko hitbox-ova. Sad kolizija sa igracem ;) Sredjeno i sa igracem
+Metkovi ubrzavaju usled duple for petlje. Hmmm =-= Mozda samo jedna for petlja? Yes, reseno metak.poc; metak.cilj. EZ
+Problem je sad overwrite mogucnost ako metak zivi vise od 30 slicica. Target aquisition je problem sad;
+pucnjava|kolizija|brisanje oBounds -> all good!
+- moram postojati SAMO jedan START i END za svaki pathfind (mozda tu prsne gonce?)
+- opet upadne u kurac i zbuni se =-= std::bad_alloc. Verujem da je opet 
+ona izlazna while petlja, hmm =-=. 
+- feel tepanja mora bude bolji, FLAT je trenutno na neki nacin.
+Mozda praviti ovo danas umesto da upadam u dubiozu opet <3
+Spamovanje maca da se resi. Resio ali ne moze da krene zbog prirode if uslova.
+Reseno IF govno, very nice.
+- nenadano promenio playerCheck lambdu da radi jos bolje (nije po pikselima vec po node-ovima).
+- ubacio neprijateljima da stoje 1s nakon sto me bupnu (trenutno su previse relentless).
+- DEATH STATE neprijatelja. brisanje u nizu zauvek ili pak bool flag? Bool flag fleksibilniji,
+ali onda mora da ga dodam u sve mehanike: sudari, pathfinding, crtanje (ovo je lako), kretanje
+Napravio trash medjuresenje, samo ga pomerim van ekrana. Pijac.
+1) tip boop -  samo boop, to smo sredili
+2) tip bull - dodje ispred tebe na recimo 10 node-a, zapamti poziciju, iskljuci pathfinding i zaleti se posle
+odredjenog vremena (Bullboi). Radi kao, samo mora da razgranicim vremenski ponasanje.
+- AGGRO ponasanje. tipovi neprijatelja i reakcija kad "osete" igraca.
+Base za kretanje napravljen, base booper napravljen.
+BooP neprijatelji; Ranged neprijatelji; Tanky neprijatelji;
+- prase[x][y][z] is a mess. Kako da se pociste ove zagrade?
+ovo je vrlo bitno zbog estetike. Cistimo s'vektori.
+- dump.pop_back(); eliminisan. Resenje: if(!file) break; posle svakog getline-a;
+Takodje, vec sam koristio stringstream-ove samo sam verojatno iskopirao resenja sa neta bez previse kontemplacije.
+Still gg.
+- nakon aggro-a mogo bih da nacrtam neprijatelje i glavnog lika?
+- out of scope problem pathfinding, overflow protection
+- Ne radi kolizija izmedju misa i hitboxova;
+ne mogu da ih brisem nakon postavljanja
+- Ne radi kolizija izmedju igraca i hitboxova;
+And yet radi kolizija izmedju neprijatelja i hitboxova
+
+Pocelo da se desava nakon sto sam paste-ovao onaj chunk
+koda od pred kraj. Pogledaj kraj.
+
+Radila, undo-ovao, sad ne radi. LEL
+
+Paste-ovao unutar veceg loop-a vrlo prosto and yet
+cringe <3
+
+- instanciranje pathfindinga na vise neprijatelja;
+svaki neprijatelj moze imati int vektor samo sa i
+mora se i pathfinding grid instancirati
+flag za while petlju mora biti vezan za neprijatelja ciji
+se path izracunava. 
+nalupao i clusterfuck naravno. No harm done ;)
+segfaultovao prvo u stl_construct.h a posle klasican.
+segfault nije toliko bitan, ne razgranava se stablo. 
+Well, why not??!?! We're about to find out 3:)
+Barem ga instancira po svakom neprijatelju
+Racuna F-G-H; ispuni ceo ekran; radi overflow protection;
+Igrac je na hitbox polju, tu se zajebo 99%; Ce vidimo sutra!
+Videli smo isti dan, jeste. Neinicijalizovan player.
+- tranzicija iz ekrana u ekran da bude malo manje drljava
+pokusao sa lambdom i dalje problem; Pa lambda ti ne radi.
+lambda morala biti u while scope-u da bi imala azuriranu
+vrednost. U suprotnom zacementirana i kurac na pijac.
+- pathfinding bug-ovi i optimizacija. U slucaju kada ima
+vise neprijatelja uspori se igrica. Zamrzne u potpunosti
+ako kliknem na pocetku da spawnujem neprijatelja (bez da
+pokrenem igraca)??. 
+ Bug bitniji od optimizacije za sad :)
+obelezene linije za probu. 
+ Limit je 5 neprijatelja pre
+no sto cringe-uje. Resen limit (barem tako deluje)
+ checkset ne stani da se puni, mora prekinem kad dodje do cilja.
+pola optimizacija pola ciscenje bagova. Trebalo bi da kad je H=0
+checkset bude gg.
+ uslov za ponovno startovanje pathfindinga i praznjenja stabla.
+Kad izadje iz while petlje izbaci status (naso/nijenaso). Ovo ce
+jebati hitboxove ali ne mari, pomeris i on izracuna opet.
+ kako napraviti da jedan prolaz bira parne a drugi prolaz
+neparne clanove. Round robin implementacija. Moze ali clunky.
+ Zategnuti sam pathfinding sistem. Overwrite sistem vrednosti.
+
+- ne radi ni kretanje po mapi =-=
+- upisivanje i loadovanje neprijatelja. Svi se ucitavaju na x,y = 0,0;
+problem je u ucitavanju, upisuje ih tacno (i guess); Sta sam tu menjao?
+Dobro ucitava i zapisuje hitboxove. Neki kurac sam promenio =-=
+- problem bio pathfinding modul za sve, mora ga recenziram
+
+- DEBUG PF module! Nekako ubaguje program govno, kad ga iskljucim
+lepo ucitava neprijatelje i mogu da izadjem sa mape. Ako je ukljucen, std::bad_alloc
+Iz nekog razloga na pocetnom polju me jebe s'ucitavanjem neprijatelje; Gotta se that nigga 
+through. YY dosta je bagovit pathfidning sistem (ce mora da ga iznapoprigledamo)
+U donjem delu je problem, tj sama racunica pathfinding-a, verojatno kad upadne u while petlju (jednu od while petlji)
+Probamo jednu po jednu. Manja petlja (iscrtavanje budzenje niza ga izretardira), well shit, here we go again =-=.
+Reseno, playerCheck() lambda je morala biti bolje definisana. Shoganai ne <3
+Clunky as fuck sve :D
+
+- RACUNA PF SAMO AKO JE U AGGRO ZONI
+Da ide po nadjenoj putanji je laganeze, pitanje je kolika zona
+agresije da bude. Moze racunati pathfinding samo ako upadne
+u aggro zonu! Ali ako pobegnes iz zone ima par sekundi dok
+jos traje aggro (tipa 3 sekunde npr.)
+
+if (aggro && teki.timer==0) pusti pathfinding modul; timer--;
+Implementirati pogon po izracunatoj putanji. All in all should be simple;
+
+Turns out this was very easy. Doduse naso sam bug jos jedan vezan za sam pathfinding
+i retroaktivno gradjenje .current niza.
+
+- FREEZE BUG PF. Tick ne ide out of scope, hmmmm?
+Napravi failsafe timewarp (mada je ovo zajebano jer se on zamrzne u while petlji).
+5 linija koda i while kancer petlja. Verovatno se ne ispunjava uslov while-a i zato umre;
+Ye, while petlja confirmed. Mozda je problem sa duplim ciljem? Verovatno je!
+i = 0 i to crashuje maksimalno, napravio sam izuzetak i sad radi ali me nervira odakle to.
+Must look into it further! Istrazio sam i dalje ne znam odakle mu i = 0, to zbog while-a puni
+.current u beskonacno i usere igricu. Reseno za sad sa izuzetkom, FUCK IT.
+
+- Reset BUG (). Bio je HP problem, brzo si skinem i bupuje me u oblivion. 
+3 naspram 5

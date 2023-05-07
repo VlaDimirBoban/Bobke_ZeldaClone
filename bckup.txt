@@ -1,0 +1,2790 @@
+#include "raylib.h"
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include "sudar.hpp"
+
+Color PWHITE = {255, 255, 255, 90};
+Color PRED = {230, 41, 55, 90};
+
+class grid
+{
+public:
+    int i = 0;
+    Rectangle rec;
+    bool walk, check, goal, ow;
+    Color color = PWHITE;
+    Vector2 node;
+    Vector2 lineage;
+    Vector2 cor = {0, 0};
+    int G, H, F; // G move cost, H heuristic, F = G + H
+    grid()
+    {
+        check = false;
+        goal = false;
+        walk = true;
+        ow = false;
+        color = PWHITE;
+        H = 0;
+        G = 0;
+        F = 0;
+    }
+    void fVal()
+    {
+        F = H + G;
+    }
+};
+
+class lifeforms
+{
+public:
+    Rectangle rec;
+    Rectangle srcrec;
+    Vector2 mouse;
+    Vector2 cent;
+    Vector2U<int> pos;
+    int HP = 5, count = 0;
+    // lifeforms(){
+    //     cent.x = srcrec.x+30;
+    //     cent.y = srcrec.y+30;
+    // }
+};
+
+class player : public lifeforms
+{
+
+public:
+    bool coll = false;
+    bool check = false;
+    bool show = false;
+    bool wait = false, still = true;
+    float rot;
+    int i = 0, smerX = 0;
+    Vector2 mac;
+    Rectangle slash;
+    Vector2 goal; //  = {0, 0};
+    float brzX = 5.0f;
+    float brzY = 5.0f;
+    float move = 1.0f;
+    int marker = 0;
+    Vector4 col = {1, 1, 1, 1}; // col.x/y/w/z za kretanje i detekciju kolizije
+};
+
+class enemy : public lifeforms
+{
+private:
+    int smerX1 = 1, smerY1 = 1;
+    int count1 = 0;
+
+public:
+    int HP = 3;
+    int smerX = 1, smerY = 1;
+    int count, ftime, move, ani = 0;
+    int collcount;
+    float brzTX = 0;
+    float brzTY = 0;
+    bool colld, wait, ping, once, found, bull = false, pucaj, still = false;
+    bool aggro, find;
+    bool check;
+    int type, broj, parr;
+    int marker, waitfps, timemarkT, tsuite, bulltime;
+    Vector4 col = {1, 1, 1, 1};
+    Vector2 spawn;
+    Vector2 circle = {spawn.x + 30.0f, spawn.y + 30.0f};
+    Vector2 metak, cilj, poc;
+    std::vector<grid> tree, current;
+    std::vector<Vector2> meci;
+    float radius;
+    enemy()
+    {
+        found = false;
+        find = false;
+        tsuite = 0;
+        move = GetRandomValue(2, 6);
+        // cent = {srcrec.x + 30.0f, srcrec.y + 30.0f};
+    }
+    void patrol(int choice)
+    {
+        if (choice % 2 == 0)
+        {
+            if (count1 <= 150)
+            {
+                srcrec.x -= smerX * 1;
+                // srcrec.x = srcrec.x;
+                // srcrec.y = srcrec.y;
+                count1++;
+            }
+            else
+            {
+                count1 = 0;
+                smerX = -smerX;
+            }
+        }
+        else
+        {
+            if (count1 <= 150)
+            {
+                srcrec.y -= smerY * 1;
+                // srcrec.x = srcrec.x;
+                // srcrec.y = srcrec.y;
+                count1++;
+            }
+            else
+            {
+                count1 = 0;
+                smerY = -smerY;
+            }
+        }
+        std::cout << "count je: " << count1 << '\n';
+    }
+    void speed()
+    {
+        // move = 0;
+        move = GetRandomValue(1, 6);
+    }
+};
+
+class bullet : public enemy
+{
+public:
+    Vector2 metak, cilj, poc;
+    bool paljba;
+    void fire(bool paljba)
+    {
+    }
+};
+
+class corpse
+{
+public:
+    Vector2 vec;
+    Vector2U<int> pos;
+    Rectangle rec;
+    int ani, smerX;
+    bool go;
+    corpse()
+    {
+        vec = {0, 0};
+        ani = 0;
+        go = true;
+    };
+    ~corpse(){};
+};
+
+int main(void)
+{
+    // Initialization
+    //--------------------------------------------------------------------------------------
+    const int screenWidth = 1400;
+    const int screenHeight = 900;
+
+    InitWindow(screenWidth, screenHeight, "Zelda");
+
+    Color mapa[3][3] = {
+        DARKGRAY, BLUE, DARKGRAY, BROWN, RAYWHITE, DARKGREEN, DARKGRAY, DARKBLUE, DARKGRAY};
+
+    Texture2D mapa1[3][3] = {};
+    Texture2D plyr = LoadTexture("./aset/Chars/Main-Sheet.png");
+    Texture2D type1 = LoadTexture("./aset/Chars/Type1-Sheet.png");
+    Texture2D type2 = LoadTexture("./aset/Chars/Type2-Sheet.png");
+    Texture2D type3 = LoadTexture("./aset/Chars/Type3-Sheet.png");
+    Texture2D ded = LoadTexture("./aset/Chars/ded.png");
+    Texture2D slash = LoadTexture("./aset/Chars/slash-Sheet.png");
+    Texture2D srce = LoadTexture("./aset/Chars/srce.png");
+
+    player player;
+
+    Vector4 col = {1, 1, 1, 1};
+
+    Texture2D bg = LoadTexture("./aset/Chars/Tile1_bkg.png");
+    Texture2D fg = LoadTexture("./aset/Chars/Tile1_fg.png");
+    mapa1[0][0] = LoadTexture("./aset/Mapa00.png");
+    mapa1[0][1] = LoadTexture("./aset/Mapa10.png");
+    mapa1[0][2] = LoadTexture("./aset/Mapa20.png");
+    mapa1[1][0] = LoadTexture("./aset/Mapa01.png");
+    mapa1[1][1] = LoadTexture("./aset/Mapa11.png");
+    mapa1[1][2] = LoadTexture("./aset/Mapa21.png");
+    mapa1[2][0] = LoadTexture("./aset/Mapa02.png");
+    mapa1[2][1] = LoadTexture("./aset/Mapa12.png");
+    mapa1[2][2] = LoadTexture("./aset/Mapa22.png");
+
+    std::ofstream myfile;
+
+    float x = screenWidth / 2 - 50;
+    float y = screenHeight / 2 - 50;
+    int parr = 0;
+    // int count, count1;
+    int tick = 0;
+    int posX = 1;
+    int posY = 1;
+    Vector2U<int> pos{posX, posY};
+    int handle = 0;
+    int nestedH = 0;
+    int pointX = 0;
+    int pointY = 0;
+    float brzX = 0;
+    float brzY = 0;
+    int a = 0;
+    int b = 0;
+    int enemies = 0;
+    Rectangle presek[50];
+    Rectangle presek1[50];
+    Rectangle sword;
+    bool toggle = true, newface = false;
+    bool collision = false; // ne svidja mi se sistem kretanja i kolizije, REWORK?
+    // bool check = false;
+    bool key;
+    // bool okid = false;
+    bool checkP = true;
+    bool promena = true;
+    // Color color = RAYWHITE;
+    Color minimap = BLANK;
+    int clickz[3][3] = {};
+    int spawnclickz[3][3] = {};
+    Vector2 mousePoint;
+    // Vector2 Pgoal;
+    //  Vector2 current;
+    std::vector<int> dump; // = {0};
+    std::vector<grid> current;
+    int timewarp = 0;
+    int timemark = 0;
+    int aniCount = 0, anim = 0;
+    // float aT, bT, cT = 0;
+    int broj = 0;
+    int broj1 = 0, mbroj = 0;
+    int c = 0;
+    int g = 0;
+    int counter = 0;
+    int choice = 1;
+
+    // C style arr
+
+    lifeforms crtaj[3][3][50]; // std::vector<lifeforms> crtaj || 2D ili 3d? ili pak 1D vec
+    std::vector<lifeforms> crtajV;
+    enemy teki[3][3][10];   // std::vector<enemy>  teki || -||-
+    bullet metak[3][3][10]; // std::vector<bullet> metak || -||-
+
+    // C++ vectors
+    // grid path[1500];
+    std::vector<corpse> lesina1;
+    std::vector<grid> tree, sideBitch, path;
+    std::vector<grid> checkset, dickset;
+    std::vector<grid> checked;
+    std::ifstream myFile;
+    // std::string line;
+    std::string test;
+
+    ////////////////////
+    // GRID INIT
+    ////////////////////
+
+    // for (int i = 0; i < 1410; i++)
+    // {
+    //     // ovaj deo moze samo jednom da se inicijalizuje; bacamo cpu svaki put racunajuci
+    //     // player.cent = {x+30, y+30};
+    //     path[i].i = i;
+    //     path[i].cor.x = nesto / 30;
+    //     path[i].cor.y = i / 47;
+    //     path[i].rec = {(float)nesto, (float)nesto1, 30, 30};
+    //     path[i].color = PWHITE;
+    //     path[i].walk = true;
+    //     // if (parr>0 && parr<1410) path[parr].color = GREEN;
+    //     if (nesto1 >= 900)
+    //         nesto1 = 0;
+    //     nesto += 30;
+    //     if (nesto >= 1400)
+    //     {
+    //         nesto = 0;
+    //         nesto1 += 30;
+    //     }
+    // }
+
+    ////////////////////////////
+    // GRID INITIALIZATION
+    ////////////////////////////
+
+    float *pX = new float{0};
+    float *pY = new float{0};
+
+    float dim = 60;
+
+    for (int i = 0; i < (std::ceil(screenWidth / dim) * std::ceil(screenHeight / dim)); i++) // rounding needed
+    {
+        if (*pX > screenWidth / dim)
+        {
+            *pY += 1;
+            *pX = 0;
+        }
+        path.emplace_back();
+        path.back().cor = {*pX, *pY};
+        path.back().rec = {*pX * dim, *pY * dim, dim, dim};
+        path.back().i = i;
+        path.back().color = PWHITE;
+        *pX += 1;
+    }
+
+    float up = std::ceil(screenWidth / dim);
+
+    std::cout << *pY << ' ' << *pX << '\n';
+    std::cout << "Totalni broj celija je" << (std::ceil(screenWidth / dim) * std::ceil(screenHeight / dim)) << '\n';
+
+    /* brisanje | sprecavanje memory leak */
+    delete pX;
+    delete pY;
+
+    ////////////////////////////
+    // GRID INITIALIZATION
+    ////////////////////////////
+
+    /*
+    // izracunaj za dati format na koliko celija se deli ekran
+
+    brcelija = (screenWidth*screenHeight)/(grid_cell^2);
+
+    for (int i=0; i<brcelija; i++)
+    {
+        path.emplace.back()
+        path.i = i;
+        path.cor.x = ; red
+        path.cor.y = ; kolona
+        path.rec = {.cor.x*30, .cor.y*30, 60,60};
+    }
+
+    */
+    ////////////////////
+    // GRID INIT
+    ////////////////////
+
+    auto vektorCheck = [](Vector2 x1, Vector2 x2)
+    {
+        return (x1.x == x2.x) && (x1.y == x2.y);
+    };
+
+    // auto keyKiller = [tree](int x)
+    // {
+    //     bool y = false;
+    //     for (auto & value: tree){
+    //         if (value.i == x) y = true;
+    //     }
+    //     return y;
+    // }; -> bool
+
+    // auto keyKiller = [&tree](int x)
+    // {
+    //     for (const auto &value : tree)
+    //     {
+    //         if (value.i == x)
+    //         {
+    //             return true;
+    //         }
+    //     }
+    //     return false;
+    // };
+
+    auto oBounds = [&](int x)
+    {
+        return (x >= 0 && x < (std::ceil(screenWidth / dim) * std::ceil(screenHeight / dim)));
+    };
+
+    auto wrap = [&](Vector2 x, Vector2 y)
+    {
+        return (x.y == y.y);
+    };
+
+    // auto inBoundsT = [](Rectangle x, Rectangle y)
+    // {
+    //     return CheckCollisionRecs(x, y);
+    // };
+    /*
+
+    HITBOXES
+
+    */
+
+    myFile.open("mapa.csv");
+
+    while (myFile)
+    {
+        std::string line;
+        // std::cout<< broj << std::endl;
+        getline(myFile, line, ',');
+        if (!myFile)
+            break;
+        std::stringstream ss(line);
+        while (getline(ss, line, ','))
+        {
+            // std::cout << line << " ";
+            dump.push_back(std::stoi(line)); // ovo nisam imao pojma sta pisem; 100% :D
+        }
+        // lump.push_back(line);
+    }
+
+    // cout DEBUG
+
+    for (int i : dump)
+    {
+        if (broj1 % 7 == 0 && broj1 != 0)
+            std::cout << std::endl;
+        std::cout << i << ' ';
+        broj1++;
+    }
+
+    // efektivno nebitno
+
+    myFile.close();
+
+    // printVec(dump);
+    //  dump.pop_back();
+
+    std::cout << "Velicina vektora " << dump.size() << std::endl;
+    // std::cout << dump.size() << std::endl;
+    // a=1;
+    // b=1;
+
+    // punis c style niz s'podacima iz vektora, a mozda bi mogo all in one go
+
+    /*
+    guba.open("mapa.csv");
+
+    input iz fajla
+
+    while (guba){
+        std::string s;
+        getline(guba,s,',');
+        std::stringstream sts(s);
+        while (getline(sts,s,','){
+            dump.push_back(std::stoi(s));
+        }
+    }
+
+    e sad dumpovanje u vektor umesto u C-style;
+
+    int *br = new int;
+    *br = 0;
+
+    for (auto& x: dump){
+        {
+            switch
+            case (i=0)
+            {
+            crtaj.emplace_back();
+            crtaj.back().rec.x = x;
+            }
+            case (i=1)
+            {
+            crtaj.emplace_back();
+            crtaj.back().rec.y = x;
+            }
+            case (i=2)
+            {
+            crtaj.emplace_back();
+            crtaj.back().rec.width = x;
+            }
+            case (i=3)
+            {
+            crtaj.emplace_back();
+            crtaj.back().rec.height = x;
+            }
+            case (i=4)
+            {
+            crtaj.emplace_back();
+            crtaj.back().x = x;
+            }
+            case (i=5)
+            {
+            crtaj.emplace_back();
+            crtaj.back().y = x;
+            }
+            case (i=6)
+            {
+            crtaj.emplace_back();
+            crtaj.back().count = x;
+            }
+        }
+        *br++;
+    }
+
+    guba.close("mapa.csv");
+    */
+
+    if (dump.size() < 1000)
+    {
+        for (int i = 0; i < (int)dump.size(); i += 7)
+        {
+            if (a != dump[i + 4] || b != dump[i + 5])
+                c = 0;
+            a = dump[i + 4];
+            b = dump[i + 5];
+            clickz[b][a] = dump[i + 6];
+            crtaj[b][a][c].rec.x = dump[i];
+            crtaj[b][a][c].rec.y = dump[i + 1];
+            crtaj[b][a][c].rec.width = dump[i + 2];
+            crtaj[b][a][c].rec.height = dump[i + 3];
+            crtaj[b][a][c].srcrec = crtaj[b][a][c].rec;
+            // std::cout << crtaj[b][a][c].srcrec.x << std::endl;
+            c++;
+        }
+    }
+
+    int *br = new int;
+    *br = 0;
+
+    for (auto &x : dump)
+    {
+        if (*br == 0)
+            crtajV.emplace_back();
+        switch (*br)
+        {
+        case 0:
+            crtajV.back().rec.x = x;
+        case 1:
+            crtajV.back().rec.y = x;
+        case 2:
+            crtajV.back().rec.width = x;
+        case 3:
+            crtajV.back().rec.height = x;
+        case 4:
+            crtajV.back().pos.x = x;
+        case 5:
+            crtajV.back().pos.y = x;
+        case 6:
+            crtajV.back().count = x;
+        }
+        // std::cout << "trt count je: " << *br << '\n';
+        *br += 1;
+        if (*br == 7)
+            *br = 0;
+    }
+
+    delete br;
+
+    // std::cout << "Velicina c je " << c << std::endl;
+
+    dump.clear();
+
+    /*
+
+    SPAWN POINTS
+
+    */
+    myFile.open("mapa_spawn.csv");
+
+    while (myFile)
+    {
+        std::string line;
+        // std::cout<< broj << std::endl;
+        getline(myFile, line, ',');
+        if (!myFile)
+            break;
+        std::stringstream ss(line);
+        while (getline(ss, line, ','))
+        {
+            // std::cout << line << " ";
+            dump.push_back(std::stoi(line));
+        }
+        // lump.push_back(line);
+    }
+
+    broj1 = 0;
+
+    std::cout << "Vektor spawn-ova " << std::endl;
+
+    for (int i : dump)
+    {
+        if (broj1 % 5 == 0 && broj1 != 0)
+            std::cout << std::endl;
+        std::cout << i << ' ';
+        broj1++;
+    }
+
+    myFile.close();
+
+    // dump.pop_back();
+
+    std::cout << "Velicina Vektora 2 je " << dump.size() << std::endl;
+
+    if (dump.size() < 150)
+    {
+        for (int i = 0; i < (int)dump.size(); i += 5)
+        {
+            if (a != dump[i + 2] || b != dump[i + 3])
+                c = 0;
+            a = dump[i + 2];
+            std::cout << "A koordinata je " << a << '\n';
+            b = dump[i + 3];
+            std::cout << "B koordinata je " << b << '\n';
+            spawnclickz[b][a] = dump[i + 4];
+            teki[b][a][c].srcrec.x = dump[i];
+            std::cout << "X koordinata je " << teki[b][a][c].srcrec.x << '\n';
+            teki[b][a][c].srcrec.y = dump[i + 1];
+            std::cout << "Y koordinata je " << teki[b][a][c].srcrec.y << '\n';
+            // teki[b][a][c].srcrec.x = teki[b][a][c].srcrec.x;
+            // teki[b][a][c].srcrec.y = teki[b][a][c].srcrec.y;
+            teki[b][a][c].srcrec.width = 60;
+            teki[b][a][c].srcrec.height = 60;
+            std::cout << spawnclickz[b][a] << std::endl;
+            c++;
+        }
+    }
+
+    /*
+
+    SPAWN POINTS
+
+    */
+
+    SetTargetFPS(60);
+
+    /*
+
+    BEGIN!
+
+    */
+
+    int swordani = 0;
+
+    while (!WindowShouldClose()) // Detect window close button or ESC key
+    {
+        // frame ticker
+
+        timewarp++;
+        player.srcrec = {x, y, 60, 60};
+        player.cent = {x + 30, y + 30};
+        mousePoint = GetMousePosition();
+        pos = {posX, posY};
+        handle = clickz[posY][posX];
+        enemies = spawnclickz[posY][posX];
+
+        sword = {(float)swordani * 60, 60, 60, 60};
+
+        if (IsKeyReleased(KEY_F1))
+            newface = !newface;
+
+        int prd = 0;
+
+        // sistem za animaciju
+
+        ////////////
+        /// LAMBDE
+        ///////////
+
+        // ultra kul lambdica koja bolje radi za usmeravanje neprijatelja kad su pod agro
+        auto smer = [](float &x, float &y)
+        {
+            return !(x > y);
+        };
+
+        auto vechck = [&pos](Vector2U<int> &x)
+        {
+            if (pos.x == x.x)
+                if (pos.y == x.y)
+                    return true;
+            return false;
+        };
+
+        auto playerCheck = [&]()
+        {
+            return ((player.i >= 0) && (player.i < std::ceil(screenWidth / dim) * std::ceil(screenHeight / dim))); //((player.cent.x > 10 && player.cent.x < 1390) && (player.cent.y > 10 && player.cent.y < 890));
+        };
+
+        for (auto &x : crtajV)
+        {
+            if (vechck(x.pos))
+            {
+                prd++;
+            }
+        }
+
+        std::cout << "Na mapi ima " << prd << " hitboxova" << '\n';
+
+        ////////////
+        /// LAMBDE
+        ///////////
+
+        player.rec = {(float)anim * 120, 120, 120, 120};
+        player.slash = {(float)swordani * 60, 60, 60, 60};
+
+        // player.rot = funkcija (vec 1(player.cent), vec 2(mousePoint))
+
+        // player.rot = arccos(cos(mousePoint, player.cent)); // shvatio zasto ne radi, resenje je cringe(kvadranti)
+
+        player.rot = rot(player.cent, mousePoint);
+
+        if (timewarp % 7 == 0)
+        {
+            anim++;
+            // corpse ani counter/rec
+            for (auto &value : lesina1)
+            {
+                value.rec = {(float)value.ani * 120, 120, 120, 120};
+                if (value.go)
+                {
+                    if (value.smerX == 0)
+                    {
+                        if (value.ani < 3)
+                            value.ani++;
+                        else
+                            value.go = false;
+                    }
+                    if (value.smerX == 1)
+                    {
+                        if (value.ani < 7)
+                            value.ani++;
+                        else
+                            value.go = false;
+                    }
+                }
+            }
+        }
+
+        if (timewarp % 3 == 0)
+        {
+            if (swordani >= 6)
+                swordani = 0;
+            if (swordani >= 2)
+                swordani++;
+        }
+
+        if (player.show)
+        {
+            swordani = 2;
+        }
+
+        if (player.still)
+        {
+            if (player.smerX == 1)
+            {
+                if (anim >= 6)
+                    anim = 1;
+            }
+            else
+            {
+                if (anim >= 12)
+                    anim = 7;
+            }
+        }
+        else
+        {
+            if (player.smerX == 1)
+            {
+                if (anim >= 16)
+                    anim = 13;
+            }
+            else
+            {
+                if (anim >= 20)
+                    anim = 17;
+            }
+        }
+
+        // tu me zbunjuje ali necu se napinjem :3
+
+        // if (smerX==1) crtaj desno;
+        // else crtaj levo;
+        // if (player.smer == 1) crtaj desno;
+        // else crtaj levo;
+        // if (player.input == 1) crtaj run;
+        // else crtaj static;
+        // if (player.input == 3) crtaj swish;
+
+        //////////////
+        /// MAC VEKTOR // crtaj mac shodno polozaju misa
+        //////////////
+
+        sudar(mousePoint.x, x + 30, mousePoint.y, y + 30, player.mac.x, player.mac.y);
+
+        // ovo je govno, nista ne radi
+
+        //////////////
+        /// MAC VEKTOR // crtaj mac shodno polozaju misa
+        //////////////
+
+        /*
+
+        AGGRO CHECK
+
+        */
+
+        // for (int i = 0; i < enemies; i++)
+        // {
+        // }
+
+        /*
+
+        AGGRO CHECK || PATROLA || KOLIZIJA TEKI vs BOX
+
+        */
+
+        for (int i = 0; i < enemies; i++)
+        {
+            teki[posY][posX][i].circle = {teki[posY][posX][i].srcrec.x + 30, teki[posY][posX][i].srcrec.y + 30};
+            if (CheckCollisionCircleRec(teki[posY][posX][i].circle, 350, player.srcrec))
+            {
+                teki[posY][posX][i].tsuite = timewarp;
+                teki[posY][posX][i].find = true;
+                teki[posY][posX][i].aggro = true;
+            }
+            else if ((timewarp - teki[posY][posX][i].tsuite >= 120) || (teki[posY][posX][i].tsuite == 0))
+            {
+                teki[posY][posX][i].aggro = false;
+                teki[posY][posX][i].find = false;
+            }
+
+            if (!teki[posY][posX][i].aggro)
+            {
+                // std::cout << "Nije agresivan  hehehhe" << '\n';
+                //  jebava ovde nesto =-=
+                teki[posY][posX][i].patrol(i);
+
+                // Kolizija prilikom patroliranja ||
+
+                for (int j = 0; j < clickz[posY][posX]; j++)
+                {
+                    if (CheckCollisionRecs(teki[posY][posX][i].srcrec, crtaj[posY][posX][j].srcrec))
+                    {
+                        presek1[j] = GetCollisionRec(teki[posY][posX][i].srcrec, crtaj[posY][posX][j].srcrec);
+                        if (presek1[j].y > teki[posY][posX][i].srcrec.y + 30 && presek1[j].width > presek1[j].height)
+                        {
+                            teki[posY][posX][i].smerY = 1;
+                            teki[posY][posX][i].count = 0;
+                        }
+                        if (presek1[j].y < teki[posY][posX][i].srcrec.y + 30 && presek1[j].width > presek1[j].height)
+                        {
+                            teki[posY][posX][i].smerY = -1;
+                            teki[posY][posX][i].count = 0;
+                        }
+                        if (presek1[j].x < teki[posY][posX][i].srcrec.x + 30 && presek1[j].height > presek1[j].width)
+                        {
+                            teki[posY][posX][i].smerX = -1;
+                            teki[posY][posX][i].count = 0;
+                        }
+                        if (presek1[j].x > teki[posY][posX][i].srcrec.x + 30 && presek1[j].height > presek1[j].width)
+                        {
+                            teki[posY][posX][i].smerX = 1;
+                            teki[posY][posX][i].count = 0;
+                        }
+                    }
+                }
+
+                /*
+                for (auto& x: crtajV)
+                {
+                    if (vechck(x.pos))
+                    {
+                        if (CheckCollisionRecs(teki[posY][posX][i].srcrec, x.rec))
+                        {
+                            presek1[j] = GetCollisionRec(teki[posY][posX][i].srcrec, x.rec);
+                            if (presek1[j].y > teki[posY][posX][i].srcrec.y + 30 && presek1[j].width > presek1[j].height)
+                            {
+                                teki[posY][posX][i].smerY = 1;
+                                teki[posY][posX][i].count = 0;
+                            }
+                            if (presek1[j].y < teki[posY][posX][i].srcrec.y + 30 && presek1[j].width > presek1[j].height)
+                            {
+                                teki[posY][posX][i].smerY = -1;
+                                teki[posY][posX][i].count = 0;
+                            }
+                            if (presek1[j].x < teki[posY][posX][i].srcrec.x + 30 && presek1[j].height > presek1[j].width)
+                            {
+                                teki[posY][posX][i].smerX = -1;
+                                teki[posY][posX][i].count = 0;
+                            }
+                            if (presek1[j].x > teki[posY][posX][i].srcrec.x + 30 && presek1[j].height > presek1[j].width)
+                            {
+                                teki[posY][posX][i].smerX = 1;
+                                teki[posY][posX][i].count = 0;
+                            }
+                        }
+                    }
+                }
+                */
+
+                // Kolizija prilikom patroliranja ||
+            }
+        }
+
+        /*
+
+        AGGRO CHECK || PATROLA || KOLIZIJA TEKI vs BOX
+
+        */
+
+        /*
+        PATHFINDING
+
+        1) Podela ekrana na matricu(grid); da bema razlomljenih podela(celobrojno!)
+        2) Markiraj walkable i non walkable povrsine (ako ima kolizije izmedju gridcell i hitbox-a non walkable, else walkable)
+        3) Pathfind!
+
+        Igrac pozicija; neprijatelj pozicija;
+        Proveri ima li prepreka izmedju njih:
+        ima -> pathfinding
+        nema -> homing
+
+        ima:
+         Odredi najkraci put uracunavajuci zaobilazenje prepreka i cepanje.
+
+        */
+        if (IsKeyReleased(KEY_Q))
+        {
+            std::cout << "Cord x je " << player.cent.x << '\n';
+            std::cout << "Cord y je " << player.cent.y << '\n';
+            // std::cout << "Lambda je " << playerCheck() << '\n';
+            if (!playerCheck())
+                std::cout << "Centar je van ekrana " << '\n';
+        }
+
+        // Boop; ako je find -> homing node po node dok ne dodju do igraca
+        // za sad samo ovaj tip da se ne komplikuje nepotrebno <3
+
+        /* GAS */
+
+        // Obsolete!!!
+        // if (IsKeyDown(KEY_F) && teki[posY][posX][0].find)
+        // {
+        //     homingnode(current[current.size() - 2].rec.x + 15, teki[posY][posX][0].srcrec.x + 30, current[current.size() - 2].rec.y + 15, teki[posY][posX][0].srcrec.y + 30, &teki[posY][posX][0].srcrec.x, &teki[posY][posX][0].srcrec.y);
+        //     homingnode(teki[posY][posX][tick].current[teki[posY][posX][tick].current.size()-2].rec.x + 15, teki[posY][posX][tick].srcrec.x + 30, teki[posY][posX][tick].current[teki[posY][posX][tick].current.size()-2].rec.y + 15, teki[posY][posX][tick].srcrec.y + 30, &teki[posY][posX][tick].srcrec.x, &teki[posY][posX][tick].srcrec.y);
+        // }
+
+        // segfaultuje ovde // ne vise ;)
+
+        /* GAS */
+
+        for (int i = 0; i < enemies; i++)
+        {
+            // if (!(teki[posY][posX][i].type == 3))
+            //     teki[posY][posX][i].rec = {(float)teki[posY][posX][i].ani * 150, 150, 150, 150};
+            // if ((teki[posY][posX][i].type == 1) && (teki[posY][posX][i].type == 2))
+            teki[posY][posX][i].rec = {(float)teki[posY][posX][i].ani * 120, 120, 120, 120};
+            if (teki[posY][posX][i].type == 2)
+                teki[posY][posX][i].rec = {(float)teki[posY][posX][i].ani * 150, 150, 150, 150};
+            if (timewarp % 7 == 0)
+                teki[posY][posX][i].ani++;
+
+            // if ((teki[posY][posX][i].smerX == 0) || (teki[posY][posX][i].smerX == -1))
+            // {
+            //     if (teki[posY][posX][i].ani >= 6)
+            //         teki[posY][posX][i].ani = 1;
+            // }
+            // else if (teki[posY][posX][i].smerX == 1)
+            // {
+            //     if (teki[posY][posX][i].ani >= 12)
+            //         teki[posY][posX][i].ani = 7;
+            // }
+
+            // clunk event based =-= promena .ani brojaca. Ali mora se ogranici nekim bool-om ili nesto.
+
+            if (teki[posY][posX][i].aggro)
+            {
+                if (timewarp - teki[posY][posX][i].waitfps >= 60)
+                {
+                    teki[posY][posX][i].wait = false;
+                    // teki[posY][posX][i].find = false;
+                }
+                // ne stoje vec jure igraca dok im ne pobegne iz aggro kruga (ce vidimo ovo, mozda ne prestanu da ga jure zavisno od tezine)
+                // bupnu ga pa stanu i tako
+                if (!teki[posY][posX][i].wait)
+                {
+                    // homing(teki[posY][posX][i].col, teki[posY][posX][i].srcrec.x, player.srcrec.x, teki[posY][posX][i].srcrec.y, player.srcrec.y, teki[posY][posX][i].move, i, &player.check, &teki[posY][posX][i].srcrec.x, &teki[posY][posX][i].srcrec.y);
+
+                    /* Pathhoming
+
+                    izracunati H(heuristic) || ovo nemam pojma jos kako se racuna; youtube! || Manhattan distance se spominje
+
+                    function heuristic(node) =
+                    dx = abs(node.x - goal.x)
+                    dy = abs(node.y - goal.y)
+                    return D * (dx + dy)
+
+                    function distance(node) =
+                    dx = abs(node.x - goal.x)
+                    dy = abs(node.y - goal.y)
+                    return D * (dx + dy)
+
+                    u sustini ista funkcija samo inverzna
+
+                    F = G + H; Racunas bez dijagonala za pocetak. Odaberes najmanju pa ides dalje. Mora se proigras u PSD da shvatis malo algoritam.
+                    Nema zajebane kodne strukture, odabiras najbolji node i stavljas ga u lanac. Po tom lancu ide prase, poyy
+                    ISCRTAVANJE PUTA;
+                    for (i=0; i<path.length; i++){
+                        DrawlineEX(path[i].node,path[i-1].node,20);
+                    }
+
+                    ENGINE PUTA; guras ga homing funkcijom ka odabranim cvorovima (kada je na manje od 10 piksela menjas cilj ka sledecem cvoru)
+                    if (abs(teki[posY][posX][i].srcrec.x - node.x) >= 10 && abs(teki[posY][posX][i].srcrec.x - node.y)>=10)
+                    homingnode(teki[posY][posX][i].srcrec.x, node.x, teki[posY][posX][i].srcrec.y, node.y, &teki[posY][posX][i].srcrec.x, &teki[posY][posX][i].srcrec.y)
+                    else node++ (next node);
+
+                    Check only walkable tiles || if path.walk { checkushimasu };
+                    Check all nodes around a node, pick lowest F, repeat
+                    sets/lists (add, remove).
+                    - Checked set
+                    - Unchecked set
+                    - Path set (picked nodes)
+                    repeat until node == .goal;
+
+                    zapravo je on point, pogledaj lists and sets na YT! Mora da postoji razlog zasto ih koriste.
+                    algoritam bitniji od koda samog, zamisli.
+
+                    */
+                }
+                // check if stop; FIRE interval
+                if (player.check && i % 2 == 0 && (timewarp - teki[posY][posX][i].marker >= 60))
+                {
+                    // teki[posY][posX][i].metak.x = teki[posY][posX][i].srcrec.x + 30.0f;
+                    // teki[posY][posX][i].metak.y = teki[posY][posX][i].srcrec.y + 30.0f;
+                    // homingmetak(teki[posY][posX][i].srcrec.x + 30.0f, x + 30.0f, teki[posY][posX][i].srcrec.y + 30.0f, y + 30.0f, &metak[posY][posX][i].metak.x, &metak[posY][posX][i].metak.y);
+                    // teki[posY][posX][i].marker = timewarp;
+                    // std::cout << "PUC PUC PUC" << std::endl;
+                }
+            }
+
+            // teki[posY][posX][i].metak.x -= metak[posY][posX][i].metak.x;
+            // teki[posY][posX][i].metak.y -= metak[posY][posX][i].metak.y;
+
+            if (teki[posY][posX][i].collcount >= clickz[posY][posX])
+                teki[posY][posX][i].col = {1, 1, 1, 1};
+            for (int j = 0; j < clickz[posY][posX]; j++)
+            {
+                if (CheckCollisionRecs(teki[posY][posX][i].srcrec, crtaj[posY][posX][j].srcrec))
+                {
+                    presek1[j] = GetCollisionRec(teki[posY][posX][i].srcrec, crtaj[posY][posX][j].srcrec);
+                    // pracenje presek povrsine u odnosu na samu kocku, to je potencijalno prostije? :D || update, jeste prostije.
+
+                    if (presek1[j].y < teki[posY][posX][i].srcrec.y + 30 && presek1[j].width > presek1[j].height)
+                    {
+                        teki[posY][posX][i].col.x = 0;
+                        teki[posY][posX][i].colld = true;
+                    }
+                    if (presek1[j].y > teki[posY][posX][i].srcrec.y + 30 && presek1[j].width > presek1[j].height)
+                    {
+                        teki[posY][posX][i].col.y = 0;
+                        teki[posY][posX][i].colld = true;
+                    }
+                    if (presek1[j].x < teki[posY][posX][i].srcrec.x + 30 && presek1[j].height > presek1[j].width)
+                    {
+                        teki[posY][posX][i].col.w = 0;
+                        teki[posY][posX][i].colld = true;
+                    }
+                    if (presek1[j].x > teki[posY][posX][i].srcrec.x + 30 && presek1[j].height > presek1[j].width)
+                    {
+                        teki[posY][posX][i].col.z = 0;
+                        teki[posY][posX][i].colld = true;
+                    }
+                    teki[posY][posX][i].collcount = 0;
+                }
+                else
+                {
+                    teki[posY][posX][i].collcount++;
+                    // std::cout << "collcount " << teki[posY][posX][i].collcount << std::endl;
+                    // std::cout << "JESTE " << std::endl;
+                    teki[posY][posX][i].colld = false;
+                }
+
+                /*
+
+                Ako bupnes neprijatelja, zamrznes se malo i odbijes od njega.
+
+                */
+                if (CheckCollisionRecs(player.srcrec, teki[posY][posX][i].srcrec))
+                {
+                    player.wait = true;
+                    teki[posY][posX][i].wait = true;
+                    teki[posY][posX][i].find = false;
+                    teki[posY][posX][i].waitfps = timewarp;
+                    timemark = timewarp;
+                    for (int i = 0; i < clickz[posY][posX]; i++)
+                    {
+                        if (CheckCollisionRecs(player.srcrec, crtaj[posY][posX][i].srcrec))
+                        {
+                            presek[i] = GetCollisionRec(player.srcrec, crtaj[posY][posX][i].srcrec);
+                            // pracenje presek povrsine u odnosu na samu kocku, to je potencijalno prostije? :D
+                            if (presek[i].y > y + 30 && presek[i].width > presek[i].height)
+                            { // na dole
+                                player.col.y = 0;
+                                brzY = 0;
+                                player.coll = true;
+                                y -= presek[i].height;
+                            }
+                            if (presek[i].y < y + 30 && presek[i].width > presek[i].height)
+                            { // na gore
+                                player.col.x = 0;
+                                brzY = 0;
+                                player.coll = true;
+                                y += presek[i].height;
+                            }
+                            if (presek[i].x < x + 30 && presek[i].height > presek[i].width)
+                            { // na levo
+                                player.col.w = 0;
+                                brzX = 0;
+                                player.coll = true;
+                                x += presek[i].width;
+                            }
+                            if (presek[i].x > x + 30 && presek[i].height > presek[i].width)
+                            { // na desno
+                                player.col.z = 0;
+                                brzX = 0;
+                                player.coll = true;
+                                x -= presek[i].width;
+                            }
+                        }
+                    }
+                    if (player.coll == false)
+                    {
+                        player.brzX = 0;
+                        player.brzY = 0;
+                        player.move = 1;
+                        sudar1(x, teki[posY][posX][i].srcrec.x, y, teki[posY][posX][i].srcrec.y, &brzX, &brzY);
+                    }
+                }
+                else
+                    player.coll = false;
+
+                if (CheckCollisionCircleRec(teki[posY][posX][i].metak, 5.0f, player.srcrec))
+                {
+                    player.wait = true;
+                    teki[posY][posX][i].metak.x = -500;
+                    teki[posY][posX][i].metak.y = -500;
+                }
+
+                /// METAK KOLIZIJA
+
+                for (int i = 0; i < mbroj; i++)
+                {
+                    if (CheckCollisionPointRec(metak[posY][posX][i].metak, crtaj[posY][posX][j].srcrec))
+                    {
+                        // player.wait = true;
+                        metak[posY][posX][i].metak.x = -500;
+                        metak[posY][posX][i].metak.y = -500;
+                        // std::cout << "KOLIZIJA O>O" << '\n';
+                    }
+                    if (CheckCollisionPointRec(metak[posY][posX][i].metak, player.srcrec))
+                    {
+                        metak[posY][posX][i].metak.x = -500;
+                        metak[posY][posX][i].metak.y = -500;
+                        player.HP--;
+                        // std::cout << "KOLIZIJA O>O" << '\n';
+                    }
+                }
+
+                /// METAK KOLIZIJA || Ne radi djubre, nemam pojma zasto hehe
+
+                if (CheckCollisionCircleRec(player.mac, 30.0f, teki[posY][posX][i].srcrec) && (swordani >= 3)) //&& player.show) //
+                {
+                    macevanje(x, teki[posY][posX][i].srcrec.x, y, teki[posY][posX][i].srcrec.y, &teki[posY][posX][i].brzTX, &teki[posY][posX][i].brzTY);
+                    // sudar1(player.cent.x, teki[posY][posX][i].srcrec.x + 30, player.cent.y, teki[posY][posX][i].srcrec.y + 30, &teki[posY][posX][i].brzTX, &teki[posY][posX][i].brzTY);
+                    if (!teki[posY][posX][i].once) // samo jednom da ga moz udaris per swish
+                    {
+                        teki[posY][posX][i].HP--;
+                        teki[posY][posX][i].once = true;
+                    }
+                    teki[posY][posX][i].ping = true;
+                    teki[posY][posX][i].wait = true;
+                    teki[posY][posX][i].waitfps = timewarp;
+                    teki[posY][posX][i].timemarkT = timewarp;
+                    // teki[posY][posX][i].srcrec.y += brzTY; // teranje u nazad
+                    // teki[posY][posX][i].srcrec.x += brzTX; // teranje u nazad; prejako je sad
+                    // okid hit animacije; pain state ili bup statican? primeri
+                }
+                if ((timewarp - aniCount) >= 15)
+                {
+                    teki[posY][posX][i].once = false;
+                }
+                // if (!CheckCollisionCircleRec(player.mac, 30.0f, teki[posY][posX][i].srcrec) && player.show)
+                //     teki[posY][posX][i].once = false;
+            }
+        }
+
+        /*
+
+            Static kolizioni sistem, cilj je kad dodirnem kockicu da stanem i to je to, a da zadrzim mogucnost kretanja u suprotnom smeru;
+
+        */
+
+        if (collision == false)
+        {
+            player.col = {1, 1, 1, 1};
+        }
+
+        for (int i = 0; i < clickz[posY][posX]; i++)
+        {
+            if (CheckCollisionRecs(player.srcrec, crtaj[posY][posX][i].srcrec))
+            {
+                // std::cout << "Presek " << '\n';
+                presek[i] = GetCollisionRec(player.srcrec, crtaj[posY][posX][i].srcrec);
+                // pracenje presek povrsine u odnosu na samu kocku, to je potencijalno prostije? :D
+
+                if (presek[i].y > y + 30 && presek[i].width > presek[i].height)
+                { // na dole
+                    player.col.y = 0;
+                    // col.y = 0;
+                    collision = true;
+                }
+                if (presek[i].y < y + 30 && presek[i].width > presek[i].height)
+                { // na gore
+                    player.col.x = 0;
+                    // col.x = 0;
+                    collision = true;
+                }
+                if (presek[i].x < x + 30 && presek[i].height > presek[i].width)
+                { // na levo
+                    player.col.w = 0;
+                    // col.w = 0;
+                    collision = true;
+                }
+                if (presek[i].x > x + 30 && presek[i].height > presek[i].width)
+                { // na desno
+                    player.col.z = 0;
+                    // col.z = 0;
+                    collision = true;
+                }
+            }
+            else
+            {
+                // col = {1,1,1,1};
+                // presek = {0,0,0,0};
+                collision = false;
+            }
+            if (CheckCollisionPointRec(mousePoint, crtaj[posY][posX][i].srcrec))
+            {
+                // std::cout << "kolizija!" << '\n';
+                if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT))
+                {
+                    // vector.pop_back
+                    // brisanje kliknutog hitboxa i smanjivanje niza (sprecavamo overflow usrani)
+                    // overflow se i dalje javlja, nacrta se hitbox na plocici na kojoj nisam crtao. <FUCK>
+                    clickz[posY][posX]--;
+                    handle = clickz[posY][posX];
+                    std::cout << "kliknuo si " << i << std::endl;
+                    for (int j = i; j < handle; j++)
+                    {
+                        crtaj[posY][posX][j].rec = crtaj[posY][posX][j + 1].rec;
+                        crtaj[posY][posX][j].srcrec = crtaj[posY][posX][j].rec;
+                    }
+                }
+            }
+        }
+
+        /*
+
+            Kolizioni sistem osvete, cilj je kad dodirnem kockicu da stanem i to je to, a da zadrzim mogucnost kretanja u suprotnom smeru;
+
+        */
+
+        for (int i = 0; i < clickz[posY][posX]; i++)
+        {
+            if (CheckCollisionRecs(player.srcrec, crtaj[posY][posX][i].srcrec))
+            {
+                player.move = 0;
+            }
+        }
+
+        // SRANJE ZIVO!!!
+        // smooth odbijanje od maca
+
+        for (int i = 0; i < spawnclickz[posY][posX]; i++)
+        {
+
+            /*
+
+            Unistavanje neprijatelja, govno resenje. Kasni malo procedura unistenja i mesa se sa guranjem unazad
+
+            */
+
+            // std::cout << "HP je" << teki[posY][posX][i].HP << '\n';
+            if (teki[posY][posX][i].HP == 0)
+            {
+                lesina1.emplace_back();
+                lesina1.back().vec = {teki[posY][posX][i].srcrec.x, teki[posY][posX][i].srcrec.y};
+                lesina1.back().smerX = teki[posY][posX][i].smerX;
+                lesina1.back().pos = {posY, posX};
+                if (teki[posY][posX][i].smerX == 1)
+                    lesina1.back().ani = 4;
+                else
+                    lesina1.back().ani = 1;
+                teki[posY][posX][i].srcrec = {1500, 1500};
+                // teki[posY][posX][i].dead = true;
+                //  teki[posY][posX][i].HP = 3;
+                //  spawnclickz[posY][posX]--;
+                //  for (int j = 0; j < spawnclickz[posY][posX]; j++)
+                //  {
+                //      if (j == i)
+                //      {
+                //          // teki[posY][posX][j].srcrec = teki[posY][posX][spawnclickz[posY][posX]].srcrec;
+                //      }
+                //  }
+                //  ovo nije bas ispravno jer resetujes HP samo
+                //  svaki put smanji spawnclickz zato ih sve brise =-= god damn it.
+                //  mozda ne mora da ih brise samo ubacis bool? =-= stalno su tu samo su mrtvi ili zivi.
+                //  Just send it. Pomeris ih van ekrana kek :) Glupo resenje ali bool je kompleksniji
+                //  i prednost mu je ako zelimo Dark Souls respawn, ali za sad neka ga ovako
+            }
+
+            /*
+
+            Unistavanje neprijatelja, govno resenje. Kasni malo procedura unistenja i mesa se sa guranjem unazad
+
+            */
+
+            for (int j = 0; j < clickz[posY][posX]; j++)
+            {
+                if (CheckCollisionRecs(teki[posY][posX][i].srcrec, crtaj[posY][posX][j].srcrec))
+                {
+                    teki[posY][posX][i].brzTX = 0;
+                    teki[posY][posX][i].brzTY = 0;
+                    // sudarODB(teki[posY][posX][i].srcrec.x + 30.0f, crtaj[posY][posX][j].srcrec.x + crtaj[posY][posX][j].srcrec.width / 2, teki[posY][posX][i].srcrec.y + 30.0f, crtaj[posY][posX][j].srcrec.y + crtaj[posY][posX][j].srcrec.height / 2, &teki[posY][posX][i].brzTX, &teki[posY][posX][i].brzTY);
+                    // odbijacki sudar! kobasica koda nepotrebna ali neka je za sad. Odo kod Dusana
+                }
+            }
+            if ((timewarp - teki[posY][posX][i].timemarkT) <= 15)
+            {
+                // odbijanje neprijatelja nakon udarca macem bezier kriva brzine
+                if (teki[posY][posX][i].ping)
+                {
+                    teki[posY][posX][i].srcrec.x += teki[posY][posX][i].brzTX;
+                    teki[posY][posX][i].srcrec.y += teki[posY][posX][i].brzTY;
+                    teki[posY][posX][i].brzTX /= 1.25;
+                    teki[posY][posX][i].brzTY /= 1.25;
+                }
+            }
+            else
+                teki[posY][posX][i].ping = false;
+        }
+
+        // SRANJE ZIVO!!!
+
+        /*
+
+        TO DO LIST:
+
+        - Pathfinding sistem na kompleksnijim lokacijama, da mogu da te jure neprijatleji || RESENO
+        - Neki nacin da neprijatelji ne mogu da se preklapaju (bez hitboxova trik, mrzi me da se drkam opet sa tim) ???
+        - range based for loop
+        - Health sistem (igraca i neprijatelja) || clunky resenje, radi kao || RESENO
+        PROBLEM: guraci pucaju sad, zasto??!! || nazirem problem, mozda treba da se napise funkcija da bude malo jasnija.
+        POPRAVLJEN: treba bolja funkcija za kvalifikaciju neprijatelja, ova je dosta vezana za index u nizu.
+        - Ako ti unisti HP, RESET (problem skidanja samo jednog HP-a, skine ih sve verovatno zbog for loop-a) || RESENO
+        - Ne radi mi kolizija sa hitbox-ovima
+        - Deathstate je retardiran malo, prebaci me na [0,0] polje na mapi.
+
+        */
+
+        /*
+        vremenski ogranicen mac, da ne bude stalno ispruzen da bijes neprijatelje u nedogled
+        */
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        {
+            if (aniCount > 0)
+            {
+                if ((timewarp - aniCount) >= 30) // ovo je zajeban If uslov jer ne moze nikad da krene (ali radio bi posle 100%)
+                {
+                    player.show = true;
+                    aniCount = timewarp;
+                }
+            }
+            else
+                player.show = true;
+            if (aniCount == 0)
+                aniCount = timewarp;
+        }
+
+        // trajanje udarca maca 5x16.7ms (za sad)
+
+        if ((timewarp - aniCount) >= 3)
+        {
+            player.show = false;
+        }
+
+        /*
+        vremenski ogranicen mac
+        */
+
+        /*
+        Smooth sudar izmedju neprijatelja i igraca
+        */
+
+        x += brzX * player.move;
+        y += brzY * player.move;
+
+        if ((timewarp - timemark) >= 15)
+        {
+            brzX = 0;
+            brzY = 0;
+        }
+
+        if (brzX == 0 && brzY == 0)
+        {
+            player.brzX = 7.0f;
+            player.brzY = 7.0f;
+        }
+
+        /*
+        HP -- ako je igrac bupnut, u stanju cekanja. 5 Frames window.
+        */
+
+        if (player.wait)
+        {
+            if ((timewarp - timemark) >= 5)
+            {
+                player.HP--;
+                player.wait = false;
+            }
+        }
+
+        /*
+
+        input sistem za kretnju
+
+        */
+
+        if (IsKeyDown(KEY_W) && !(IsKeyDown(KEY_S)))
+        {
+            // y -= col.x * brzY;
+            y -= player.col.x * player.brzY;
+            player.still = false;
+        }
+
+        if (IsKeyDown(KEY_S) && !(IsKeyDown(KEY_W)))
+        {
+            // y += col.y * brzY;
+            y += player.col.y * player.brzY;
+            player.still = false;
+        }
+        if (IsKeyDown(KEY_A) && !(IsKeyDown(KEY_D)))
+        {
+            // x -= col.w * brzX;
+            if (player.still)
+                anim = 13;
+            player.still = false;
+            x -= player.col.w * player.brzX;
+            player.smerX = 1;
+        }
+        if (IsKeyDown(KEY_D) && !(IsKeyDown(KEY_A)))
+        {
+            if (player.still)
+                anim = 17; // zamrzotina
+            player.still = false;
+            // x += col.z * brzX;
+            x += player.col.z * player.brzX;
+            player.smerX = 0;
+        }
+
+        if ((!IsKeyDown(KEY_W) && !IsKeyDown(KEY_A) && !IsKeyDown(KEY_S) && !IsKeyDown(KEY_D)))
+        {
+
+            if (!player.still)
+            {
+                anim = 0;
+                if (player.smerX == 0)
+                    anim = 7;
+                else
+                    anim = 0;
+            }
+            player.still = true;
+        }
+
+        /*
+
+        OVERFLOW ZASTITA: da igrac ne moze izaci sa mape (ako izadje, jave se segfault-ovi, iscrtavaju se random pravougaonici, random boje pozadina, HAOS lend)
+
+        */
+
+        if (y < -100 && posY > 0)
+        {
+            posY--;
+            y = 900;
+            promena = true;
+        };
+        if (y > 950 && posY < 2)
+        {
+            posY++;
+            y = -100;
+            promena = true;
+        }
+        if (x > 1400 && posX < 2)
+        {
+            posX++;
+            x = -100;
+            promena = true;
+        }
+        if (x + 100 < 0 && posX > 0)
+        {
+            posX--;
+            x = 1400;
+            promena = true;
+        }
+
+        /*
+
+        Pathfinding GRID
+
+        */
+
+        // if (okid)
+        // {
+        //     // if ((player.goal.x != Pgoal.x)||(player.goal.y != Pgoal.y)){
+        //     if (!vektorCheck(player.goal, Pgoal))
+        //     {
+        //         Pgoal = player.goal;
+        //         check = true;
+        //         parr = broj;
+        //         tree.clear();
+        //         current.clear();
+        //         tree.push_back(path[broj]);
+        //         tree.back().G = 0;
+        //         tree.back().H = heuristic(path[parr].cor.x, player.goal.x, path[parr].cor.y, player.goal.y);
+        //         tree.back().fVal();
+        //     }
+        // }
+
+        // PATHFINDING pocetak
+        if (enemies > 0) //(playerCheck() && enemies > 0) //
+        {
+            if (tick > enemies)
+                tick = 0;
+            // tick = 0;
+            if (playerCheck())
+            {
+                for (auto &path : path) // for (int i = 0; i < 1410; i++)
+                {
+                    // ovaj deo moze samo jednom da se inicijalizuje; bacamo cpu svaki put racunajuci
+                    // player.cent = {x+30, y+30};
+                    path.color = PWHITE;
+                    path.walk = true;
+                    // if (parr>0 && parr<1410) path[parr].color = GREEN;
+                    for (int k = 0; k < clickz[posY][posX]; k++)
+                    {
+                        if (CheckCollisionRecs(path.rec, crtaj[posY][posX][k].srcrec))
+                        {
+                            path.color = PRED;
+                            path.walk = false;
+                        }
+                    }
+                    // for (int k = 0; k < spawnclickz[posY][posX]; k++)
+                    // {
+                    if (CheckCollisionPointRec(player.cent, path.rec))
+                    {
+                        if (!path.walk)
+                        {
+                            // check = false;
+                            checkP = false;
+
+                            // teki[posY][posX][tick].tree.clear();
+                            // teki[posY][posX][tick].current.clear();
+
+                            // tree.clear();
+                            // current.clear();
+                        }
+                        else // if (!vektorCheck(player.goal, path[i].cor))
+                        {
+                            checkP = true;
+                            player.goal = path.cor;
+                            player.i = path.i;
+                            // teki[posY][posX][tick].tree.clear();
+                            // teki[posY][posX][tick].current.clear();
+                        }
+                    }
+                    //}
+                    // for (auto& value : tree){
+                    //     if ((path[i].cor.x == value.cor.x)&&(path[i].cor.y == value.cor.y)) path[i].color = BLUE;
+                    // }
+                    // for (auto& value : current){
+                    //     if ((path[i].cor.x == value.cor.x)&&(path[i].cor.y == value.cor.y)) path[i].color = YELLOW;
+                    // }
+
+                    // else path[i].color = PWHITE;
+
+                    // obelezava polozaj neprijatelja na grid-u
+                    // Izracuna ali ne iscrta kako treba, neka vrsta cutoff-a postoji
+
+                    // for (int k = 0; k < spawnclickz[posY][posX]; k++)
+                    // {
+
+                    teki[posY][posX][tick].cent = {teki[posY][posX][tick].srcrec.x + 30, teki[posY][posX][tick].srcrec.y + 30};
+
+                    if (path.walk && checkP && (enemies > 0))
+                    {
+                        if (CheckCollisionPointRec(teki[posY][posX][tick].cent, path.rec))
+                        {
+                            // mora da ogranicim drljanje pathfindinga, ovako ide konstantno zato i pokoci racunarce;
+                            // path[i].color = BLUE;
+                            // Pgoal = player.goal;
+                            teki[posY][posX][tick].check = true;
+                            teki[posY][posX][tick].broj = path.i;
+                            teki[posY][posX][tick].parr = path.i;
+                            teki[posY][posX][tick].tree.clear();
+                            teki[posY][posX][tick].current.clear();
+                            teki[posY][posX][tick].tree.push_back(path);
+                            teki[posY][posX][tick].tree.back().G = 0;
+                            teki[posY][posX][tick].tree.back().H = heuristic(path.cor.x, player.goal.x, path.cor.y, player.goal.y);
+                            teki[posY][posX][tick].tree.back().fVal();
+                            teki[posY][posX][tick].tree.back().check = true;
+                            // parr = i;
+                            // broj = i;
+                            // check = true;
+                            // broj = i;
+                            // parr = i;
+                            // tree.clear();
+                            // current.clear();
+                            // tree.push_back(path[i]);
+                            // tree.back().G = 0;
+                            // tree.back().H = heuristic(path[i].cor.x, player.goal.x, path[i].cor.y, player.goal.y);
+                            // tree.back().fVal();
+                        }
+                        // }
+
+                        // obelezava polozaj neprijatelja na grid-u
+
+                        // if (CheckCollisionPointRec(mousePoint, path[i].rec))
+                        // {
+                        //     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+                        //     {
+                        //         if (i != parr)
+                        //         {
+                        //             okid = true;
+                        //             Pgoal = player.goal;
+                        //             check = true;
+                        //             broj = i;
+                        //             parr = i;
+                        //             // pocetak = path[parr].cor;
+                        //             tree.clear();
+                        //             current.clear();
+                        //             tree.push_back(path[i]);
+                        //             tree.back().G = 0;
+                        //             tree.back().H = heuristic(path[parr].cor.x, player.goal.x, path[parr].cor.y, player.goal.y);
+                        //             tree.back().fVal();
+                        //             // std::cout << "Heuristic je " << tree.back().H << '\n';
+                        //         }
+                        //     }
+                        // }
+                    }
+                    // for (int i=0; i<1410; i++){
+                    //     for (auto& value : current){
+                    //         if ((path[i].cor.x == value.cor.x)&&(path[i].cor.y == value.cor.y)) path[i].color = YELLOW;
+                    //     }
+                }
+            }
+
+            /*
+
+            Pathfinding GRID
+
+            */
+
+            // path[parr-1].color = BLUE;
+            // path[parr-47].color = BLUE;
+            // path[parr+1].color = BLUE;
+            // path[parr+47].color = BLUE;
+
+            //    //if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+            //     if (check){
+            //         if (current.back().H != 0){
+            //         if (path[parr-1].walk){
+            //             path[parr-1].H = heuristic(path[parr-1].cor.x, player.goal.x, path[parr-1].cor.y, player.goal.y);
+            //             path[parr-1].G = path[parr].G;
+            //             path[parr-1].fVal();
+            //             tree.push_back(path[parr-1]);
+            //             }
+            //         if (path[parr-47].walk){
+            //             path[parr-47].H = heuristic(path[parr-47].cor.x, player.goal.x, path[parr-47].cor.y, player.goal.y);
+            //             path[parr-47].G = path[parr].G;
+            //             path[parr-47].fVal();
+            //             tree.push_back(path[parr-47]);
+            //             }
+            //         if (path[parr+1].walk){
+            //             path[parr+1].H = heuristic(path[parr+1].cor.x, player.goal.x, path[parr+1].cor.y, player.goal.y);
+            //             path[parr+1].G = path[parr].G;
+            //             path[parr+1].fVal();
+            //             tree.push_back(path[parr+1]);
+            //             }
+            //         if (path[parr+47].walk){
+            //             path[parr+47].H = heuristic(path[parr+47].cor.x, player.goal.x, path[parr+47].cor.y, player.goal.y);
+            //             path[parr+47].G = path[parr].G;
+            //             path[parr+47].fVal();
+            //             tree.push_back(path[parr+47]);
+            //             }
+
+            //         // for (grid value: tree){
+            //         //     std::cout << value.G << " ";
+            //         //     }
+
+            //         // std::cout << "Step! " << current.size() << '\n';
+
+            //         std::sort(tree.begin(), tree.end(),[](const grid& lhs, const grid& rhs){
+            //         return lhs.F < rhs.F;
+            //         });
+
+            //         current.push_back(tree.front());
+            //         parr = (tree.front().i);
+            //         path[parr].G += 10;
+            //         tree.clear();
+
+            //         //intuitivno mu zabrani da ide nazad (majmun ide nazad uporno); Za pocetak napisi vizelizaciju, mozda click po click metod da vidimo sta radi picka!
+
+            //         for (grid value: current){
+            //             std::cout << value.F << " ";
+            //             }
+
+            //         std::cout << "Step! " << '\n';
+
+            //         }
+            //     }
+
+            /*
+
+            PATHFINDING AUTO
+
+            */
+            // if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+            // if (tick % 2 == 0)
+            // {
+            // for (int i = 0; i < spawnclickz[posY][posX]; i++)
+            // {
+            // std::cout << "prompt " << '\n';
+            // if ()
+            //{
+            if (teki[posY][posX][tick].find)
+            {
+                if ((teki[posY][posX][tick].tree.size() > 0) && ((enemies > 0) && (promena))) //  && (teki[posY][posX][i].aggro))
+                {
+                    parr = teki[posY][posX][tick].parr;
+                    broj = parr;
+                    // tree.clear();
+                    // tree.push_back(teki[posY][posX][i].tree.back());
+                    while (teki[posY][posX][tick].check)
+                    {
+                        // std::cout << "Hello Mom" << '\n';
+                        checkset.clear();
+                        // dickset.clear();
+                        // count = 0;
+                        // if ((path[parr - 1].walk) && (oBounds(path[parr - 1].i))
+                        if ((path[parr - 1].walk) && wrap(path[parr].cor, path[parr - 1].cor)) //(oBounds(path[parr - 1].i)))
+                        {
+                            key = false;
+                            for (auto &value : teki[posY][posX][tick].tree)
+                            {
+                                if (value.i == path[parr - 1].i)
+                                {
+                                    key = true;
+                                    // dickset.push_back(path[parr - 1]);
+                                    // dickset.back().H = heuristic(value.cor.x, player.goal.x, value.cor.y, player.goal.y);
+                                    // dickset.back().G += c + 10;
+                                    // dickset.back().fVal();
+                                    // if (value.F > dickset.back().F)
+                                    // {
+                                    //     value.F = dickset.back().F;
+                                    //     value.check = false;
+                                    //     value.lineage = path[parr].cor;
+                                    // }
+                                }
+                            }
+                            if (!key)
+                            {
+                                checkset.push_back(path[parr - 1]);
+                                // count++;
+                            }
+                            // if (!keyKiller(path[parr - 1].i))
+                            // {
+                            //     checkset.push_back(path[parr - 1]);
+                            //     // dickset.push_back(path[parr-1]);
+                            //     // count1++;
+                            // }
+                        }
+                        if ((path[parr - up].walk) && (oBounds(path[parr - up].i)))
+                        {
+                            key = false;
+                            for (auto &value : teki[posY][posX][tick].tree)
+                            {
+                                if (value.i == path[parr - up].i)
+                                {
+                                    key = true;
+                                    // dickset.push_back(path[parr - 47]);
+                                    // dickset.back().H = heuristic(value.cor.x, player.goal.x, value.cor.y, player.goal.y);
+                                    // dickset.back().G += c + 10;
+                                    // dickset.back().fVal();
+                                    // if (value.F > dickset.back().F)
+                                    // {
+                                    //     value.F = dickset.back().F;
+                                    //     value.check = false;
+                                    //     value.lineage = path[parr].cor;
+                                    // }
+                                }
+                            }
+                            if (!key)
+                            {
+                                checkset.push_back(path[parr - up]);
+                                // count++;
+                            }
+                            // if (!keyKiller(path[parr - 47].i))
+                            // {
+                            //     checkset.push_back(path[parr - 47]);
+                            //     // dickset.push_back(path[parr-47]);
+                            //     //  checkset.push_back(path[parr-47]);
+                            //     // count1++;
+                            // }
+                        }
+                        if ((path[parr + 1].walk) && wrap(path[parr].cor, path[parr + 1].cor)) //(oBounds(path[parr + 1].i)))
+                        {
+                            key = false;
+                            for (auto &value : teki[posY][posX][tick].tree)
+                            {
+                                if (value.i == path[parr + 1].i)
+                                {
+                                    key = true;
+                                    // dickset.push_back(path[parr + 1]);
+                                    // dickset.back().H = heuristic(value.cor.x, player.goal.x, value.cor.y, player.goal.y);
+                                    // dickset.back().G += c + 10;
+                                    // dickset.back().fVal();
+                                    // if (value.F > dickset.back().F)
+                                    // {
+                                    //     value.F = dickset.back().F;
+                                    //     value.check = false;
+                                    //     value.lineage = path[parr].cor;
+                                    // }
+                                }
+                            }
+                            if (!key)
+                            {
+                                checkset.push_back(path[parr + 1]);
+                                // count++;
+                            }
+                            // if (!keyKiller(path[parr + 1].i))
+                            // {
+                            //     checkset.push_back(path[parr + 1]);
+                            //     // dickset.push_back(path[parr+1]);
+                            //     //  checkset.push_back(path[parr+1]);
+                            //     // count1++;
+                            // }
+                        }
+                        if ((path[parr + up].walk) && (oBounds(path[parr + up].i)))
+                        {
+                            key = false;
+                            for (auto &value : teki[posY][posX][tick].tree)
+                            {
+                                if (value.i == path[parr + up].i)
+                                {
+                                    key = true;
+                                    // dickset.push_back(path[parr + 47]);
+                                    // dickset.back().H = heuristic(value.cor.x, player.goal.x, value.cor.y, player.goal.y);
+                                    // dickset.back().G += c + 10; // ovo valja izmeniti;
+                                    // dickset.back().fVal();
+                                    // if (value.F > dickset.back().F)
+                                    // {
+                                    //     value.F = dickset.back().F;
+                                    //     value.check = false;
+                                    //     value.lineage = path[parr].cor;
+                                    // }
+                                }
+                            }
+                            if (!key)
+                            {
+                                checkset.push_back(path[parr + up]);
+                                // count++;
+                            }
+                            // if (!keyKiller(path[parr + 47].i))
+                            // {
+                            //     checkset.push_back(path[parr + 47]);
+                            //     // dickset.push_back(path[parr+47]);
+                            //     //  checkset.push_back(path[parr+47]);
+                            //     // count1++;
+                            // }
+                        }
+
+                        // samo dumpujes sva 4 u tree i onda tu odradis heuristic operacije comprende? cistije i lakse dosta
+                        // zasto? da bi mogao da odradis heuristic i GMove za ceo vector tree brzo <3
+                        // Overwrite funkcionalnost za optimalan put
+                        // Konzistentnost (update u realnom vremenu)
+
+                        // std::cout << "count je " << count << '\n' << "count1 je " << count1 << '\n';
+                        // if (checkset.size() == 0) check = false;
+
+                        // std::cout << "Checkset ima sledeci broj clanova " << checkset.size() << '\n';
+                        // teki[posY][posX][i].check = false;
+                        if (checkset.size() > 0)
+                        {
+                            for (auto &value : checkset)
+                            {
+                                value.lineage = path[parr].cor;
+                                value.H = heuristic(value.cor.x, player.goal.x, value.cor.y, player.goal.y);
+                                value.G += g + 10;
+                                value.fVal();
+                            }
+                        }
+                        //     // tree.insert(tree.end(), checkset.begin(), checkset.end());
+                        //     // std::sort(tree.begin(), tree.end(), [](const grid &lhs, const grid &rhs)
+                        //     //           { return lhs.F < rhs.F; });
+
+                        // std::cout << "Checkset broj clanova: " << checkset.size() << '\n';
+
+                        teki[posY][posX][tick].tree.insert(teki[posY][posX][tick].tree.end(), checkset.begin(), checkset.end());
+                        // tree.insert(tree.end(), checkset.begin(), checkset.end());
+
+                        //  std::cout << teki[posY][posX][i].tree.size() << '\n';
+
+                        // for (auto &value : tree)
+                        // {
+                        //     std::cout << value.F << ' ';
+                        //     std::cout << value.H << ' ';
+                        //     std::cout << value.G << ' ';
+                        // }
+                        // std::cout << '\n';
+
+                        std::sort(teki[posY][posX][tick].tree.begin(), teki[posY][posX][tick].tree.end(), [](const grid &lhs, const grid &rhs)
+                                  { return lhs.F < rhs.F; });
+
+                        // std::sort(tree.begin(), tree.end(), [](const grid &lhs, const grid &rhs)
+                        //           { return lhs.F < rhs.F; });
+
+                        for (auto &value : teki[posY][posX][tick].tree) //
+                        {
+                            if (!value.check)
+                            {
+                                // std::cout << "upao u petlju" << '\n';
+                                parr = value.i;
+                                value.check = true;
+                                g = value.G;
+                                // std::cout << "najmanje H je " << value.H << '\n';
+                                // if (value.H == 0)
+                                // {
+                                //     // std::cout << "upao u petlju" << '\n';
+                                //     teki[posY][posX][i].current.push_back(value);
+                                //     teki[posY][posX][i].check = false;
+                                //     // teki.check = false;
+                                // }
+                                if (value.H == 0) //(vektorCheck(value.cor, player.goal))
+                                {
+                                    teki[posY][posX][tick].current.push_back(value);
+                                    teki[posY][posX][tick].check = false;
+                                    // teki[posY][posX][i].found = true; // loop restraint;
+                                }
+                                break;
+                            }
+                        }
+
+                        //     // for (auto &value : tree)
+                        //     // {
+                        //     //     if (!value.check)
+                        //     //     {
+                        //     //         parr = value.i;
+                        //     //         value.check = true;
+                        //     //         c = value.G;
+                        //     //         if (value.H == 0)
+                        //     //         {
+                        //     //             current.push_back(value);
+                        //     //             check = false;
+                        //     //             // teki.check = false;
+                        //     //         }
+                        //     //         break;
+                        //     //     }
+                        //     // }
+
+                        //     /* NO PATH */
+
+                        counter = 0;
+                        for (auto &value : teki[posY][posX][tick].tree) //
+                        {
+                            if (value.check)
+                                counter++;
+                        }
+
+                        // std::cout << "broj proverenih node-ova je " << counter << '\n';
+                        // std::cout << "broj totalnih node-ova je " << teki[posY][posX][i].tree.size() << '\n';
+
+                        if (counter == (int)teki[posY][posX][tick].tree.size()) //
+                            teki[posY][posX][tick].check = false;
+
+                        //  ovaj deo ga spasi, znaci proverava.
+                        //  teki.check = false;
+
+                        // /*
+                        //     NO PATH
+                        //     govnjivo resenje dou
+                        // */
+                        // // }
+
+                        // std::cout << "tree size je " << teki[posY][posX][i].tree.size() << '\n';
+                        // std::cout << "counter je " << counter << '\n';
+                        // dodaje 2 po ciklusu u vektor, nzm zasto :I
+                        // redosled je problem i onda ih dodaje deo po deo
+                        // MUST FIX
+                        // if (teki[posY][posX][i].current.size() > 0)
+                        //     teki[posY][posX][i].check = false;
+
+                        // std::cout << "current velicina je " << teki[posY][posX][i].current.size() << '\n';
+                    }
+
+                    // Pravljenje celog puta od nadjenog cilja preko lineage-a;
+                    // Ovde se javlja jos jedan bag, pogotovo u onom C obliku hitbox-ova =-=
+
+                    if (teki[posY][posX][tick].current.size() > 0)
+                    {
+                        // std::cout << "tick je " << tick << '\n';
+                        while (teki[posY][posX][tick].current.back().i != broj)
+                        {
+                            // std::cout << "i vs broj : " << teki[posY][posX][tick].current.back().i << " " << broj << '\n';
+                            // std::cout << "i je " << teki[posY][posX][tick].current.back().i << '\n';
+                            for (auto &value : teki[posY][posX][tick].tree) //
+                            {
+                                if (vektorCheck(value.cor, teki[posY][posX][tick].current.back().lineage)) // proveravamo da li je tekuci tree clan predak prvog clana current-a i na taj nacin punimo
+                                    teki[posY][posX][tick].current.push_back(value);
+                                //  if ((value.cor.x == current.back().lineage.x) && (value.cor.y == current.back().lineage.y)) current.push_back(value);
+                            }
+                            if (teki[posY][posX][tick].current.back().i == 0)
+                                break;
+                            // std::cout << "i vs broj : " << teki[posY][posX][tick].current.back().i << " " << broj << '\n';
+                            // std::cout << "Current size je: " << teki[posY][posX][tick].current.size() << '\n';
+                        }
+                        // std::cout << "prezivesmo while petlju !" << '\n';
+                    }
+                }
+            }
+            //}
+            tick++;
+        }
+
+        //}
+
+        // if (tick >= 10)
+        //     tick = 0;
+
+        // mnogo promenljiva, mora se pocisti to sranje (redudantnost koda)
+        // funktori - Lambda
+        // bool & pointeri no no
+        // std::cout << "Velicina tree je " << tree.size() << '\n' << "Velicina sideBitch-a je " << sideBitch.size() << '\n';
+        // for (int j = 0; j < enemies; j++)
+        // {
+        // for (int i = 0; i < 1410; i++)
+        // {
+
+        //     for (auto &value : current)
+        //     {
+        //         if (i == value.i)
+        //             path[i].color = YELLOW;
+        //     }
+        // }
+
+        // std::cout << "Current je trenutacno " << teki[posY][posX][0].current.size() << '\n';
+
+        // GAS SISTEM
+
+        // std::cout << ".ani je " << teki[posY][posX][0].ani << '\n';
+        //  std::cout << ".smerX je " << teki[posY][posX][0].smerX << '\n';
+
+        // TEKI ANIMACIJA
+        // TEKI TYPE
+
+        for (int j = 0; j < spawnclickz[posY][posX]; j++)
+        {
+
+            if ((teki[posY][posX][j].find) && (teki[posY][posX][j].current.size() > 0) && (playerCheck() && (!teki[posY][posX][j].wait)))
+            {
+                if (teki[posY][posX][j].type == 1)
+                {
+                    // trokira kada je na ivici ekrana bas =-= hmm.
+                    // std::cout << "homing radi!" << '\n';
+                    homingnode(teki[posY][posX][j].current[teki[posY][posX][j].current.size() - 2].rec.x + dim / 2, teki[posY][posX][j].srcrec.x + 30, teki[posY][posX][j].current[teki[posY][posX][j].current.size() - 2].rec.y + dim / 2, teki[posY][posX][j].srcrec.y + 30, teki[posY][posX][j].move, &teki[posY][posX][j].srcrec.x, &teki[posY][posX][j].srcrec.y, &teki[posY][posX][j].smerX);
+                    // smerX check radi dobro i guess, verovatno bool biva govno; nacrtaj ga; jeste bool govno.
+                    if (smer(player.cent.x, teki[posY][posX][j].cent.x)) // ((teki[posY][posX][j].smerX == 0))
+                    {
+                        if ((teki[posY][posX][j].ani == 6))
+                            teki[posY][posX][j].still = false;
+                        if (!teki[posY][posX][j].still)
+                        {
+                            teki[posY][posX][j].ani = 1;
+                            teki[posY][posX][j].still = true;
+                        }
+                    }
+                    else // if (teki[posY][posX][j].smerX == 1)
+                    {
+                        if ((teki[posY][posX][j].ani == 12))
+                            teki[posY][posX][j].still = true;
+                        if (teki[posY][posX][j].still)
+                        {
+                            teki[posY][posX][j].ani = 7;
+                            teki[posY][posX][j].still = false;
+                        }
+                    }
+                }
+                if ((teki[posY][posX][j].type == 2) && (teki[posY][posX][j].current.size() >= 15))
+                { // || (inBoundsT(teki[posY][posX][j].srcrec, {0, 0, 1400, 900})))
+                    homingnode(teki[posY][posX][j].current[teki[posY][posX][j].current.size() - 3].rec.x + 15, teki[posY][posX][j].srcrec.x + 30, teki[posY][posX][j].current[teki[posY][posX][j].current.size() - 3].rec.y + 15, teki[posY][posX][j].srcrec.y + 30, teki[posY][posX][j].move, &teki[posY][posX][j].srcrec.x, &teki[posY][posX][j].srcrec.y, &teki[posY][posX][j].smerX);
+                    if (smer(player.cent.x, teki[posY][posX][j].cent.x)) //((teki[posY][posX][j].smerX == 0))
+                    {
+                        if ((teki[posY][posX][j].ani >= 6))
+                            teki[posY][posX][j].still = false;
+                        if (!teki[posY][posX][j].still)
+                        {
+                            teki[posY][posX][j].ani = 1;
+                            teki[posY][posX][j].still = true;
+                        }
+                    }
+                    else // if (teki[posY][posX][j].smerX == 1)
+                    {
+                        if ((teki[posY][posX][j].ani >= 12))
+                        {
+                            // std::cout << "I'm here!!" << '\n';
+                            teki[posY][posX][j].still = false;
+                        }
+                        if (!teki[posY][posX][j].still)
+                        {
+                            teki[posY][posX][j].ani = 7;
+                            teki[posY][posX][j].still = true;
+                        }
+                    }
+                }
+
+                else if ((teki[posY][posX][j].type == 2) && (teki[posY][posX][j].current.size() < 15)) //
+                {
+                    // pathfinding off; ovo i ne mora
+                    if ((timewarp - teki[posY][posX][j].bulltime >= 60) || (teki[posY][posX][j].bulltime == 0)) //  && (!inBoundsT(teki[posY][posX][j].srcrec, {0, 0, 1400, 900})))
+                    {
+                        teki[posY][posX][j].bulltime = timewarp;
+                        teki[posY][posX][j].cilj = player.cent;
+                        teki[posY][posX][j].poc = teki[posY][posX][j].cent;
+                        // trza se kad je na ivici ekrana prasence =-=
+                        // doraditi ovu sekciju ona dole radi dobro, manje vise <3
+                        // cilj je da se crta animacija samo dok ne krene da divlja
+                        if (smer(player.cent.x, teki[posY][posX][j].cent.x)) //(teki[posY][posX][j].smerX == 0)
+                        {
+                            teki[posY][posX][j].ani = 13;
+                        }
+                        else
+                        {
+                            teki[posY][posX][j].ani = 19;
+                        }
+                    }
+                    if (smer(player.cent.x, teki[posY][posX][j].cent.x))
+                    {
+                        if (teki[posY][posX][j].ani >= 18) //(teki[posY][posX][j].smerX == 0)
+                            teki[posY][posX][j].ani = 1;
+                    }
+                    else if (teki[posY][posX][j].ani >= 24)
+                        teki[posY][posX][j].ani = 7;
+
+                    if ((timewarp - teki[posY][posX][j].bulltime >= 25) && (timewarp - teki[posY][posX][j].bulltime <= 59))
+                    {
+                        // wiggle ako ga izbegnes. Jos jedan uslov za homing.
+                        // if (dist(teki[posY][posX][j].cilj.x, teki[posY][posX][j].cent.x, teki[posY][posX][j].cilj.y, teki[posY][posX][j].cent.y) >= 15.0f)
+                        if (dist(teki[posY][posX][j].cent, teki[posY][posX][j].poc) <= 400.0f)
+                        {
+                            homingnode(teki[posY][posX][j].cilj.x, teki[posY][posX][j].poc.x, teki[posY][posX][j].cilj.y, teki[posY][posX][j].poc.y, 20, &teki[posY][posX][j].srcrec.x, &teki[posY][posX][j].srcrec.y, &teki[posY][posX][j].smerX);
+                        }
+                        // teki[posY][posX][j].check = false;
+                    }
+                    // if (timer) rush(x1,x2,y1,y2) // funkcija ispaljivanja nakon timer-a
+                    // if rushed ukljuci pathfinding
+                }
+
+                if (teki[posY][posX][j].type == 3) // current size ga okida i spamuje metkove, to je prvi ocigledan problem
+                {
+                    if (teki[posY][posX][j].current.size() <= 15)
+                    {
+                        if (smer(player.cent.x, teki[posY][posX][j].cent.x)) //(teki[posY][posX][j].smerX == 0)
+                        {
+                            if (teki[posY][posX][j].still)
+                            {
+                                teki[posY][posX][j].ani = 13;
+                                teki[posY][posX][j].still = false;
+                            }
+                            if (teki[posY][posX][j].ani > 19)
+                            {
+                                teki[posY][posX][j].ani = 13;
+                                teki[posY][posX][j].still = true;
+                            }
+                        }
+
+                        else // if (teki[posY][posX][j].smerX == 1)
+                        {
+                            if (teki[posY][posX][j].still)
+                            {
+                                teki[posY][posX][j].ani = 21;
+                                teki[posY][posX][j].still = false;
+                            }
+                            if (teki[posY][posX][j].ani > 27)
+                                teki[posY][posX][j].still = true;
+                        }
+                        // spawnovanje metaka problem
+                        if ((timewarp - teki[posY][posX][j].bulltime >= 30)) // || (teki[posY][posX][j].bulltime == 0))
+                        {
+
+                            // if ((teki[posY][posX][j].ani >= 19) || (teki[posY][posX][j].ani >= 27))
+                            // {
+                            if ((teki[posY][posX][j].ani == 27) || (teki[posY][posX][j].ani == 19))
+                            {
+                                teki[posY][posX][j].bulltime = timewarp;
+                                // teki[posY][posX][j].cilj = player.cent;
+                                teki[posY][posX][j].bull = true;
+                                metak[posY][posX][mbroj].metak = {teki[posY][posX][j].srcrec.x + 30.0f, teki[posY][posX][j].srcrec.y + 30.0f};
+                                metak[posY][posX][mbroj].poc = {teki[posY][posX][j].srcrec.x + 30.0f, teki[posY][posX][j].srcrec.y + 30.0f};
+                                metak[posY][posX][mbroj].cilj = player.cent;
+                                mbroj++;
+                            }
+                            //}
+
+                            // jednom po metku da se ogranici ispali pa sacekaj
+                            //
+
+                            // if (mbroj == 10)
+                            //     mbroj = -1;
+                            // teki[posY][posX][j].pucaj = true;
+                            // teki[posY][posX][j].meci.push_back({teki[posY][posX][j].srcrec.x + 30, teki[posY][posX][j].srcrec.y + 30});
+                        }
+                    }
+                    // if ((timewarp - teki[posY][posX][j].bulltime >= 30))
+                    //     teki[posY][posX][j].bull = true;
+                    if (teki[posY][posX][j].current.size() >= 15)
+                    {
+                        // if ((timewarp - teki[posY][posX][j].bulltime >= 10) && (timewarp - teki[posY][posX][j].bulltime < 60))
+                        // {
+                        //     // pljuckaj s'metkovi. Za sad je samo jedan
+                        //     // treba svaki da ima perzistentnost dok ne udari u nesto ili ne ode sa ekrana (u tom slucaju unistavamo)
+                        //     // znaci mogli bi da koristimo vektor kao kontejner i onda ispalis i ne mislis
+                        //     // for (int i = 0; i < mbroj; i++)
+                        //     homingmetak(teki[posY][posX][j].cent.x, teki[posY][posX][j].cilj.x, teki[posY][posX][j].cent.y, teki[posY][posX][j].cilj.y, &metak[posY][posX][j].metak.x, &metak[posY][posX][j].metak.y);
+                        // }
+                        // pljuckanje animacija! 13-20; 21-28; levo/desno
+                        homingnode(teki[posY][posX][j].current[teki[posY][posX][j].current.size() - 3].rec.x + 15, teki[posY][posX][j].srcrec.x + 30, teki[posY][posX][j].current[teki[posY][posX][j].current.size() - 3].rec.y + 15, teki[posY][posX][j].srcrec.y + 30, teki[posY][posX][j].move, &teki[posY][posX][j].srcrec.x, &teki[posY][posX][j].srcrec.y, &teki[posY][posX][j].smerX);
+                        if (smer(player.cent.x, teki[posY][posX][j].cent.x)) //((teki[posY][posX][j].smerX == 0))
+                        {
+                            if ((teki[posY][posX][j].ani == 6))
+                                teki[posY][posX][j].still = false;
+                            if (!teki[posY][posX][j].still)
+                            {
+                                teki[posY][posX][j].ani = 1;
+                                teki[posY][posX][j].still = true;
+                            }
+                        }
+                        else // if (teki[posY][posX][j].smerX == 1)
+                        {
+                            if ((teki[posY][posX][j].ani == 12))
+                            {
+                                // std::cout << "I'm here!!" << '\n';
+                                teki[posY][posX][j].still = false;
+                            }
+                            if (!teki[posY][posX][j].still)
+                            {
+                                teki[posY][posX][j].ani = 7;
+                                teki[posY][posX][j].still = true;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if ((teki[posY][posX][j].smerX == 0) || (teki[posY][posX][j].smerX == -1))
+                {
+                    if ((teki[posY][posX][j].ani == 12))
+                        teki[posY][posX][j].still = false;
+                    if (!teki[posY][posX][j].still)
+                    {
+                        teki[posY][posX][j].ani = 7;
+                        teki[posY][posX][j].still = true;
+                    }
+                }
+                if (teki[posY][posX][j].smerX == 1)
+                {
+                    if ((teki[posY][posX][j].ani == 6))
+                        teki[posY][posX][j].still = true;
+                    if (teki[posY][posX][j].still)
+                    {
+                        teki[posY][posX][j].ani = 1;
+                        teki[posY][posX][j].still = false;
+                    }
+                }
+            }
+
+            for (int i = 0; i < std::ceil(screenWidth / dim) * std::ceil(screenHeight / dim); i++)
+            {
+                // for (auto &value : teki[posY][posX][j].tree)
+                // {
+                //     if (i == value.i)
+                //         path[i].color = YELLOW;
+                // }
+
+                for (auto &value : teki[posY][posX][j].current)
+                {
+                    if (i == value.i)
+                        path[i].color = BLUE;
+                }
+            }
+        }
+
+        // TEKI ANIMACIJA
+        // TEKI TYPE
+
+        auto oBounds = [](Vector2 a)
+        {
+            return ((a.x >= -50) && (a.x < 1460) && (a.y >= -50) && (a.y < 950));
+        };
+
+        // Meci spawning
+        // zasto se zamrzavaju?? Dobro se brisu ali wtf =-= Iscrtavanje verovatno
+        // jeste bilo iscrtavanje.
+
+        for (int i = 0; i < mbroj; i++)
+        {
+            // if (teki[posY][posX][i].bull)
+            // {
+            // stakuje se brzina po metku, zato je samo prvi ispravan. hmm =-=
+            homingmetak(metak[posY][posX][i].poc.x, metak[posY][posX][i].cilj.x, metak[posY][posX][i].poc.y, metak[posY][posX][i].cilj.y, &metak[posY][posX][i].metak.x, &metak[posY][posX][i].metak.y);
+            if (!oBounds(metak[posY][posX][i].metak))
+            {
+                for (int j = i; j < mbroj; j++)
+                {
+                    metak[posY][posX][j] = metak[posY][posX][j + 1];
+                }
+                mbroj--;
+            }
+            //}
+            // nadjemo nacin da brisemo metkove nakon sto izadju sa ekrana i da ne opali samo jednom metak, nego da nastavi da puca
+            // to se javlja u gornjem if uslovu verojatno
+        }
+
+        // }
+
+        // for (auto& value : current){
+        //     std::cout << "H: " << value.H << ' ';
+        // }
+        // std::cout << '\n';
+        // std::cout << "drugi s'dupeta je: " << current[current.size()-2].H << '\n';
+
+        /*
+
+        PATHFINDING AUTO
+
+        */
+
+        /*
+
+        Zabelezka hitbox-ova u eksterni .csv file
+
+        */
+        // std::cout << "Promena je " << promena << '\n';
+
+        // color = mapa[posY][posX];
+
+        /*
+
+        Zabelezka hitbox-ova u eksterni .csv file
+
+        */
+
+        if (IsKeyReleased(KEY_SPACE))
+        {
+            myfile.open("mapa.csv");
+
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    nestedH = clickz[j][i];
+                    for (int k = 0; k < nestedH; k++)
+                    {
+                        myfile << "," << crtaj[j][i][k].rec.x << "," << crtaj[j][i][k].rec.y << "," << crtaj[j][i][k].rec.width << "," << crtaj[j][i][k].rec.height << "," << i << "," << j << "," << clickz[j][i] << '\n';
+                        // myfile << "," << crtaj[posY][posX][i].rec.x << "," << crtaj[posY][posX][i].rec.y << "," << crtaj[posY][posX][i].rec.width<< "," << crtaj[posY][posX][i].rec.height << "," << posX << "," << posY << "," << clickz[posY][posX] << "," <<std::endl;
+                        // std::cout << "posX " << posX << "posY " << posY << std::endl;
+                    }
+                }
+            }
+
+            myfile.close();
+
+            myfile.open("mapa_spawn.csv");
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    nestedH = spawnclickz[j][i];
+                    for (int k = 0; k < nestedH; k++)
+                    {
+                        myfile << "," << teki[j][i][k].srcrec.x << "," << teki[j][i][k].srcrec.y << "," << i << "," << j << "," << spawnclickz[j][i] << '\n';
+                    }
+                }
+            }
+
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    std::cout << spawnclickz[i][j] << " ";
+                }
+                std::cout << std::endl;
+            }
+            myfile.close();
+        }
+
+        /*
+
+        Zabelezka hitbox-ova u eksterni .csv file
+
+        */
+
+        // RESET polozaj igraca
+
+        if (IsKeyReleased(KEY_R))
+        {
+            // color = WHITE;
+            x = screenWidth / 2 - 50;
+            y = screenHeight / 2 - 50;
+            // posX = 1;
+            // posY = 1;
+            col = {1, 1, 1, 1};
+            /*for (int i=0;i<3;i++){
+                for (int j=0;j<3;j++){
+                    for (int k=0;k<1;k++){
+                        clickz[j][i] = 0;
+                    }
+                }
+            }*/
+        }
+
+        // RESET polozaj igraca
+
+        // TOGGLE iscrtavanje grida?
+
+        if (IsKeyReleased(KEY_TAB))
+        {
+            toggle = !toggle;
+            player.HP = 5;
+        }
+
+        if (IsKeyReleased(KEY_KP_1))
+        {
+            choice = 1;
+        }
+        if (IsKeyReleased(KEY_KP_2))
+        {
+            choice = 2;
+        }
+        if (IsKeyReleased(KEY_KP_3))
+        {
+            choice = 3;
+        }
+        // TOGGLE iscrtavanje grida
+
+        // HITBOX draw system
+
+        if (toggle)
+        {
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) // instanciraj hitbox
+            {
+                handle = clickz[posY][posX];
+                crtaj[posY][posX][handle].rec.x = mousePoint.x;
+                crtaj[posY][posX][handle].rec.y = mousePoint.y;
+                pointX = crtaj[posY][posX][handle].rec.x;
+                pointY = crtaj[posY][posX][handle].rec.y;
+            }
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) // drag & drop
+            {
+                /*
+                if  (mousePoint.x<pointX && mousePoint.y>pointY) {
+                    crtaj[posY][posX][clicks].rec.x = abs(mousePoint.x);
+                    crtaj[posY][posX][clicks].rec.width = abs(pointX - mousePoint.x);
+                    crtaj[posY][posX][clicks].rec.y = abs(pointY);
+                    crtaj[posY][posX][clicks].rec.height = abs(mousePoint.y-pointY);
+                }
+                else if  (mousePoint.y<pointY && mousePoint.x>pointX) {
+                    crtaj[posY][posX][clicks].rec.x = pointX;
+                    crtaj[posY][posX][clicks].rec.width = mousePoint.x-pointX;
+                    crtaj[posY][posX][clicks].rec.y = abs(mousePoint.y);
+                    crtaj[posY][posX][clicks].rec.height = abs(pointY - mousePoint.y);
+                }
+
+                else if  ((mousePoint.x<pointX) && (mousePoint.y<pointY)) {
+                    crtaj[posY][posX][clicks].rec.x = abs(mousePoint.x);
+                    crtaj[posY][posX][clicks].rec.width = abs(mousePoint.x-pointX);
+                    crtaj[posY][posX][clicks].rec.y = abs(mousePoint.y);
+                    crtaj[posY][posX][clicks].rec.height = abs(pointY - mousePoint.y);
+                }
+                */
+                // else if ((mousePoint.x>pointX) && (mousePoint.y>pointY)) {
+                crtaj[posY][posX][handle].rec.width = mousePoint.x - pointX;
+                crtaj[posY][posX][handle].rec.height = mousePoint.y - pointY;
+                //}
+            }
+
+            if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
+            {
+                crtaj[posY][posX][handle].srcrec = crtaj[posY][posX][handle].rec;
+                std::cout << crtaj[posY][posX][handle].rec.x << "," << crtaj[posY][posX][handle].rec.y << "," << crtaj[posY][posX][handle].rec.width << "," << crtaj[posY][posX][handle].rec.height << "," << posX << "," << posY << "," << std::endl;
+                clickz[posY][posX]++;
+                handle = clickz[posY][posX];
+            }
+
+            if (IsMouseButtonReleased(MOUSE_BUTTON_MIDDLE))
+            {
+                teki[posY][posX][enemies].srcrec.x = mousePoint.x;
+                teki[posY][posX][enemies].srcrec.y = mousePoint.y;
+                std::cout << "mousePoint.x :" << mousePoint.x << '\n';
+                std::cout << "mousePoint.y :" << mousePoint.y << '\n';
+                teki[posY][posX][enemies].srcrec = {teki[posY][posX][enemies].srcrec.x, teki[posY][posX][enemies].srcrec.y, 60, 60};
+                teki[posY][posX][enemies].type = choice;
+                spawnclickz[posY][posX]++;
+                std::cout << "spawnclikz: " << spawnclickz[posY][posX] << '\n';
+            }
+
+            for (int i = 0; i < spawnclickz[posY][posX]; i++)
+            {
+                if (CheckCollisionPointRec(mousePoint, teki[posY][posX][i].srcrec))
+                {
+                    // std::cout << "kolizija!" << '\n';
+                    if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT))
+                    {
+                        std::cout << "kliknuo si " << i << std::endl;
+                        for (int j = i; j < spawnclickz[posY][posX]; j++)
+                        {
+                            teki[posY][posX][j] = teki[posY][posX][j + 1];
+                        }
+                        spawnclickz[posY][posX]--;
+                    }
+                }
+            }
+        }
+
+        // HITBOX draw system
+
+        /*
+
+
+        // DEATH STATE
+        // ucitaj polozaje neprijatelja, vrati se na pocetni tile, resetuje health
+
+
+        */
+
+        if (player.HP == 0)
+        {
+            // koordinate pocetnog tile-a posY posX
+            // polozaj igraca 50/50
+            // ucitaj neprijatelje nanovo
+            if (dump.size() < 150)
+            {
+                for (int i = 0; i < (int)dump.size(); i += 5)
+                {
+                    if (a != dump[i + 2] || b != dump[i + 3])
+                        c = 0;
+                    a = dump[i + 2];
+                    b = dump[i + 3];
+                    spawnclickz[b][a] = dump[i + 4];
+                    std::cout << spawnclickz[b][a] << std::endl;
+                    teki[b][a][c].srcrec.x = dump[i];
+                    teki[b][a][c].srcrec.y = dump[i + 1];
+                    teki[b][a][c].srcrec.x = teki[b][a][c].srcrec.x;
+                    teki[b][a][c].srcrec.y = teki[b][a][c].srcrec.y;
+                    teki[b][a][c].srcrec.width = 60;
+                    teki[b][a][c].srcrec.height = 60;
+                    c++;
+                }
+            }
+            x = screenWidth / 2 - 30.0f;
+            y = screenHeight / 2 - 30.0f;
+            posY = posX = 0;
+            player.HP = 5;
+            // RESET STATE
+            // GAME OVER SCREEN (ye)
+        }
+
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+        {
+            player.rot++;
+        }
+
+        if (player.rot >= 360)
+            player.rot = 0;
+
+        // sada se javlja problem fantomskih hitboxova, iscrtaju se na random preko celog ekrana, vrlo cudan fenomen.
+        // bio je overflow u pitanju, brojac je bio za celu mapu umesto da bude broj klikova vezan za svaku celiju
+        // zbog toga je crtao random gluposti i ispunjavao vrednosti niza koje nisu zadate jeli
+
+        // myfile << "c ,s ,v,\n";
+        // myfile << "1 ,2, 3.456\n";
+        // myfile << "semi;colon";
+
+        //----------------------------------------------------------------------------------
+        BeginDrawing();
+
+        // ClearBackground(color);
+        if (!newface)
+            DrawTexture(mapa1[posY][posX], 0, 0, WHITE);
+        else
+        {
+            DrawTexture(bg, 0, 0, WHITE);
+        }
+        DrawRectangleLines(x, y, 60, 60, WHITE); // playya
+        if (newface)
+        {
+            // DrawTexture(mapa1[posY][posX], 0, 0, WHITE); // new text leniman
+            for (auto &value : lesina1)
+            {
+                if ((posX == value.pos.x) && (posY == value.pos.y))
+                    DrawTextureRec(ded, value.rec, value.vec, WHITE);
+            }
+            DrawTextureRec(plyr, player.rec, {x - 30, y - 60}, WHITE); // prvo mora da bude veci igrac
+            DrawTexture(fg, 0, 0, WHITE);
+            for (int i = 0; i < enemies; i++)
+            {
+                if (teki[posY][posX][i].type == 1)
+                    DrawTextureRec(type1, teki[posY][posX][i].rec, {teki[posY][posX][i].srcrec.x - 30, teki[posY][posX][i].srcrec.y - 30}, WHITE);
+                if (teki[posY][posX][i].type == 2)
+                    DrawTextureRec(type2, teki[posY][posX][i].rec, {teki[posY][posX][i].srcrec.x - 45, teki[posY][posX][i].srcrec.y - 45}, WHITE);
+                if (teki[posY][posX][i].type == 3)
+                    DrawTextureRec(type3, teki[posY][posX][i].rec, {teki[posY][posX][i].srcrec.x - 30, teki[posY][posX][i].srcrec.y - 30}, WHITE);
+                DrawRectangleLines(teki[posY][posX][i].srcrec.x, teki[posY][posX][i].srcrec.y, 60, 60, WHITE);
+
+                if (toggle)
+                    DrawLine(teki[posY][posX][i].srcrec.x + 30.0f, teki[posY][posX][i].srcrec.y + 30.0f, x + 30.0f, y + 30.0f, WHITE);
+            }
+
+            // crtaj lesine
+        }
+
+        // MAC crtaza
+
+        // if (player.show)
+        // {
+        //     DrawTexturePro(slash, player.slash, {player.cent.x, player.cent.y, 120, 120}, {60, 60}, player.rot, WHITE);
+        //     DrawCircle(player.mac.x, player.mac.y, 30.0f, GREEN);
+        //     // DrawTexturePro(slash, player.slash, {player.mac.x, player.mac.y, 60, 60}, player.mac, 0.0f, WHITE);
+        // }
+        // // if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) DrawCircle(player.mac.x,player.mac.y,30.0f,GREEN);
+        // else
+        // {
+        //     DrawTexturePro(slash, {0, 60, 60, 60}, {player.cent.x, player.cent.y, 120, 120}, {60, 60}, player.rot, WHITE); // crtanje nisana
+        //     DrawCircleLines(player.mac.x, player.mac.y, 30.0f, YELLOW);
+        // }
+
+        // if (player.show)
+        //     DrawCircle(player.mac.x, player.mac.y, 30.0f, GREEN);
+        DrawTexturePro(slash, player.slash, {player.cent.x, player.cent.y, 120, 120}, {60, 60}, player.rot, WHITE); // crtanje nisana
+        DrawCircleLines(player.mac.x, player.mac.y, 30.0f, YELLOW);
+
+        // MAC crtaza
+
+        // test iscrtavanje animacije. Mora bude malo vise beefy
+        // DrawTexturePro(plyr, player.rec, {60, 60, 60, 60}, mousePoint, 0.0f, WHITE);
+        // DrawTexturePro(slash, player.slash, {player.cent.x, player.cent.y, 120, 120}, {60, 60}, player.rot, WHITE);
+
+        // DrawTextureRec(slash, player.slash, mousePoint, WHITE);
+        /* dijagnostika */
+
+        DrawText(TextFormat("broj metaka: %d", mbroj), 1000, 50, 35, BLACK);
+        DrawText(TextFormat(".ani %d", teki[posY][posX][0].ani), 1200, 350, 30, BLACK);
+        DrawText(TextFormat(".ani %d", teki[posY][posX][0].smerX), 1200, 380, 30, BLACK);
+        DrawText(TextFormat("ply.smrX %d", player.smerX), 1200, 410, 30, BLACK);
+        // DrawText(TextFormat("mousepoint.x %.3f", mousePoint.x), 1200, 350, 20, BLACK);
+        // DrawText(TextFormat("mousepoint.y %.3f", mousePoint.y), 1200, 400, 20, BLACK);
+        DrawText(TextFormat("Enemy type : %.3d", choice), 1000, 20, 40, BLACK);
+        DrawText(TextFormat("player.cent.x %f", player.cent.x), 1100, 80, 30, BLACK);
+        DrawText(TextFormat("player.cent.y %f", player.cent.y), 1100, 110, 30, BLACK);
+        DrawText(TextFormat("player.rot %f", player.rot), 1100, 140, 30, BLACK);
+        // DrawText(TextFormat("spawnclickz %d", enemies), 1000, 350, 20, BLACK);
+        // DrawText(TextFormat("crtaj.x %.3f\n", crtaj[posY][posX][handle].rec.x), 1200, 200, 20, BLACK);
+        // DrawText(TextFormat("crtaj.x %.3f\n", crtaj[posY][posX][handle].rec.y), 1200, 250, 20, BLACK);
+        // DrawText(TextFormat("width %.3f\nheight %.3f", crtaj[posY][posX][handle].rec.width, crtaj[posY][posX][handle].rec.height), 1200, 300, 20, BLACK);
+        // DrawText(TextFormat("pointX %d\npointY %d", pointX, pointY), 1200, 400, 20, BLACK);
+        // DrawText(TextFormat("hitboxcount %d\n", handle), 1200, 100, 20, BLACK);
+        // DrawText(TextFormat("hitboxcountLokal %d\n", clickz[posY][posX]), 1200, 150, 20, BLACK);
+        // DrawText(TextFormat("x %.3f\n", x), 1200, 450, 20, BLACK);
+        // DrawText(TextFormat("y %.3f\n", y), 1200, 510, 20, BLACK);
+        // DrawText(TextFormat("col.x %.3f\n col.y %.3f ", player.col.x, player.col.y), 1200, 630, 20, BLACK);
+        // DrawText(TextFormat("col.w %.3f\n col.z %.3f ", player.col.w, player.col.z), 1200, 690, 20, BLACK);
+        // DrawText(TextFormat("col.x %.3f\n col.y %.3f ", teki[posY][posX][0].col.x, teki[posY][posX][0].col.y), 1000, 400, 20, BLACK);
+        // DrawText(TextFormat("brzX %.3f\n brzY %.3f\n player.move %.3f",brzX,brzY,player.move), 1000, 450, 20, BLACK);
+        // DrawText(TextFormat("promena %d",promena), 1000, 500, 20, BLACK);
+
+        /* dijagnostika */
+        for (int i = 0; i < mbroj; i++)
+            DrawCircle(metak[posY][posX][i].metak.x, metak[posY][posX][i].metak.y, 10, RED);
+
+        if (!newface)
+        {
+            for (int i = 0; i < enemies; i++)
+            {
+                if (teki[posY][posX][i].type == 1)
+                    DrawRectangle(teki[posY][posX][i].srcrec.x, teki[posY][posX][i].srcrec.y, 60, 60, BROWN);
+                if (teki[posY][posX][i].type == 2)
+                    DrawRectangle(teki[posY][posX][i].srcrec.x, teki[posY][posX][i].srcrec.y, 60, 60, DARKBLUE);
+                if (teki[posY][posX][i].type == 3)
+                    DrawRectangle(teki[posY][posX][i].srcrec.x, teki[posY][posX][i].srcrec.y, 60, 60, DARKPURPLE);
+                // DrawRectangle(teki[posY][posX][i].srcrec.x, teki[posY][posX][i].srcrec.y, 60, 60, BROWN);
+                DrawRectangleLines(teki[posY][posX][i].srcrec.x, teki[posY][posX][i].srcrec.y, 60, 60, WHITE);
+
+                if (toggle)
+                    DrawLine(teki[posY][posX][i].srcrec.x + 30.0f, teki[posY][posX][i].srcrec.y + 30.0f, x + 30.0f, y + 30.0f, WHITE);
+            }
+            for (auto &value : lesina1)
+            {
+                DrawRectangle(value.vec.x, value.vec.y, 60, 60, LIME);
+            }
+        }
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && toggle)
+        {
+            DrawRectangleLinesEx(crtaj[posY][posX][handle].rec, 10, ORANGE);
+        }
+
+        if (toggle)
+        {
+            for (int i = 0; i < handle; i++)
+            {
+                DrawRectangleLinesEx(crtaj[posY][posX][i].rec, 5, ORANGE);
+                DrawRectangle(presek[i].x, presek[i].y, presek[i].width, presek[i].height, {255, 255, 255, 100});
+            }
+            for (int i = 0; i < enemies; i++)
+            {
+                DrawCircle(teki[posY][posX][i].srcrec.x, teki[posY][posX][i].srcrec.y, 20, RED);
+                DrawCircleLines(teki[posY][posX][i].srcrec.x + 30, teki[posY][posX][i].srcrec.y + 30, 350, RED);
+            }
+            for (auto &path : path)
+            {
+                DrawRectangleLinesEx(path.rec, 2.5f, path.color);
+            }
+
+            // for (int i = 0; i < 1410; i++)
+            // {
+            //     DrawRectangleLinesEx(path[i].rec, 2.5f, path[i].color);
+            // }
+        }
+        else
+        {
+            for (auto &x : crtajV)
+            {
+                if (vechck(x.pos))
+                    DrawRectangleLinesEx(x.rec, 5, BLUE);
+            }
+        }
+
+        for (int i = 0; i < player.HP; i++)
+        {
+            if (!newface)
+                DrawRectangle(50 * (i + 1), 30, 40, 40, RED);
+            else
+                DrawTexture(srce, 80 * (i + 0.5), 30, RAYWHITE);
+        }
+
+        DrawRectangle(1300, 800, 90, 90, BLACK);
+        for (int i = 0; i < 3; i++)
+        {
+            for (int j = 0; j < 3; j++)
+            {
+                minimap = mapa[j][i];
+                DrawRectangle(1300 + i * 30, 800 + j * 30, 30, 30, minimap);
+                DrawRectangle(1312 + posX * 30, 812 + posY * 30, 5, 5, RED); // 1315
+            }
+        }
+
+        EndDrawing();
+        //----------------------------------------------------------------------------------
+    }
+
+    // De-Initialization
+    //--------------------------------------------------------------------------------------
+    CloseWindow(); // Close window and OpenGL context
+    //--------------------------------------------------------------------------------------
+
+    return 0;
+}

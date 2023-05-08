@@ -2111,6 +2111,9 @@ int main(void)
 
                     DrawRectangleLines(tek.srcrec.x, tek.srcrec.y, 60, 60, WHITE);
 
+                    for (auto &guzica : metak1)
+                        DrawCircle(guzica.metak.x, guzica.metak.y, 10, RED);
+
                     if (!devmode)
                         DrawLine(tek.srcrec.x + 30.0f, tek.srcrec.y + 30.0f, x + 30.0f, y + 30.0f, BLACK);
                 }

@@ -7,7 +7,7 @@ Fun little zelda inspired clone. This game was a significant milestone for me, i
 After that i wanted this to be a simple little 2D engine, that meant i had to build a couple of tools to ease my game creation. 
 I made:
 
-- enemy spawning too (only 3 types a s a proof of concept)
+- enemy spawning tool (only 3 types a s a proof of concept)
 - static hitbox drawing tool
 
 both of wich are saved into individual .csv files which allows me to save current state of the game world.
